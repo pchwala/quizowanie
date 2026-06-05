@@ -36,6 +36,9 @@ import json
 from collections import Counter
 from pathlib import Path
 from typing import Any
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[2] / ".env") # this script will be run only locally, so it's fine to load the .env here for convenience
 
 # Reuse helpers from the translator (HTML cleanup + tolerant checkpoint reader).
 from app.seeds.translate_questions import _clean, _iter_checkpoint
