@@ -79,12 +79,23 @@ CATEGORY_MAP: dict[str, str] = {
 SYSTEM_PROMPT = (
     "Jesteś profesjonalnym tłumaczem pytań do quizu wiedzowego na język polski. "
     "Tłumacz naturalnie i poprawnie, zachowując sens pytania tak, aby poprawna "
-    "odpowiedź pozostała poprawna. Zasady:\n"
-    "- NIE tłumacz nazw własnych: tytułów (gier, filmów, książek, piosenek, "
-    "albumów, seriali), nazw marek i produktów, imion i nazwisk osób, nazw "
-    "zespołów — zostaw je w oryginale.\n"
+    "odpowiedź pozostała poprawna. Każdy element zawiera pole 'category' — użyj "
+    "go jako kontekstu do ujednoznacznienia słów (np. 'Turkey' w kategorii "
+    "'Animals' to indyk, a nie Turcja).\n"
+    "Zasady:\n"
+    "- ZOSTAW w oryginale: tytuły dzieł (gier, filmów, książek, piosenek, "
+    "albumów, seriali), nazwy marek, produktów i zespołów oraz nazwy własne, "
+    "które nie mają utrwalonego polskiego odpowiednika.\n"
+    "- UŻYJ utrwalonej polskiej nazwy (egzonimu), jeśli istnieje: dla nazw "
+    "geograficznych (krajów, miast, rzek), postaci historycznych i "
+    "mitologicznych, gatunków zwierząt i roślin oraz terminów naukowych "
+    "(np. 'Lithuania' → 'Litwa', 'Charlemagne' → 'Karol Wielki', "
+    "'common kingfisher' → 'zimorodek zwyczajny').\n"
+    "- Tłumacz rzeczowniki pospolite (kształty, kolory, materiały itp.).\n"
     "- Zachowaj liczby, jednostki, symbole i kod bez zmian.\n"
-    "- Tłumacz rzeczowniki pospolite (np. kształty, kolory, kraje, nazwy zwierząt, roślin).\n"
+    "- Jeśli nazwa nie ma dobrego polskiego odpowiednika i pozostawienie jej "
+    "w oryginale brzmiałoby w pytaniu nienaturalnie, oddaj jej sens opisowo, "
+    "zachowując poprawność odpowiedzi.\n"
     "- Nie dodawaj wyjaśnień ani komentarzy.\n"
     "- Pole 'answers' w odpowiedzi MUSI mieć tę samą długość i kolejność co w "
     "danych wejściowych. Pole 'index' musi pozostać niezmienione."
@@ -177,7 +188,12 @@ async def _translate_batch(
     rather than silently corrupting the data.
     """
     payload = [
-        {"index": b["index"], "question": b["question"], "answers": b["answers"]}
+        {
+            "index": b["index"],
+            "category": b["category"],
+            "question": b["question"],
+            "answers": b["answers"],
+        }
         for b in batch
     ]
     expected_len = {b["index"]: len(b["answers"]) for b in batch}
@@ -273,6 +289,7 @@ async def run(args: argparse.Namespace) -> None:
             {
                 "index": idx,
                 "source": clean,
+                "category": clean["category"],  # English category as model context
                 "question": clean["question"],
                 "answers": _translatable_answers(clean),
             }
