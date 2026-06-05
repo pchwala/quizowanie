@@ -30,12 +30,8 @@ function DrawerContent({ isMobile, onClose }: { isMobile: boolean; onClose: () =
           <NavItem key={item.to} {...item} onClick={isMobile ? onClose : undefined} />
         ))}
       </List>
-      {!isMobile && (
-        <>
-          <Divider />
-          <UserAvatarSection />
-        </>
-      )}
+      <Divider />
+      <UserAvatarSection onNavigate={isMobile ? onClose : undefined} />
     </Box>
   );
 }

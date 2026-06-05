@@ -1,9 +1,28 @@
 import { useState } from 'react';
-import { Box, Paper, TextField, Button, Typography, Alert } from '@mui/material';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import {
+  Box,
+  Paper,
+  TextField,
+  Button,
+  Typography,
+  Alert,
+  Divider,
+  Checkbox,
+  FormControlLabel,
+  Link,
+} from '@mui/material';
+import GoogleIcon from '@mui/icons-material/Google';
+import {
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signInWithPopup,
+  setPersistence,
+  browserLocalPersistence,
+  browserSessionPersistence,
+} from 'firebase/auth';
 import { FirebaseError } from 'firebase/app';
 import { useNavigate } from 'react-router-dom';
-import { auth } from '../firebase';
+import { auth, googleProvider } from '../firebase';
 
 type Mode = 'login' | 'register';
 
@@ -16,6 +35,8 @@ const FIREBASE_ERRORS: Record<string, string> = {
   'auth/weak-password': 'Hasło jest za słabe. Użyj co najmniej 6 znaków.',
   'auth/too-many-requests': 'Za dużo prób logowania. Spróbuj ponownie za chwilę.',
   'auth/network-request-failed': 'Błąd sieci. Sprawdź połączenie z internetem.',
+  'auth/popup-closed-by-user': 'Okno logowania zostało zamknięte przed zakończeniem.',
+  'auth/popup-blocked': 'Przeglądarka zablokowała okno logowania.',
 };
 
 function getFirebaseErrorMessage(err: unknown): string {
@@ -30,14 +51,19 @@ export default function LoginPage() {
   const [mode, setMode] = useState<Mode>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(true);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const applyPersistence = () =>
+    setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
+      await applyPersistence();
       if (mode === 'login') {
         await signInWithEmailAndPassword(auth, email, password);
       } else {
@@ -51,11 +77,36 @@ export default function LoginPage() {
     }
   };
 
+  const handleGoogleSignIn = async () => {
+    setError('');
+    setLoading(true);
+    try {
+      await applyPersistence();
+      await signInWithPopup(auth, googleProvider);
+      navigate('/study', { replace: true });
+    } catch (err: unknown) {
+      setError(getFirebaseErrorMessage(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
-    <Box sx={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', p: 2 }}>
-      <Paper sx={{ p: 4, width: '100%', maxWidth: 400 }}>
-        <Typography variant="h5" gutterBottom>
-          {mode === 'login' ? 'Zaloguj się' : 'Zarejestruj się'}
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        p: 2,
+      }}
+    >
+      <Paper variant="outlined" sx={{ p: 4, width: '100%', maxWidth: 440 }}>
+        <Typography variant="h5" gutterBottom sx={{ fontWeight: 700, textAlign: 'center' }}>
+          Zaloguj się
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 3, textAlign: 'center' }}>
+          Witaj, zaloguj się aby kontynuować
         </Typography>
 
         {error && (
@@ -64,7 +115,25 @@ export default function LoginPage() {
           </Alert>
         )}
 
-        <Box component="form" onSubmit={handleSubmit} sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+        <Button
+          variant="outlined"
+          color="inherit"
+          fullWidth
+          size="large"
+          startIcon={<GoogleIcon />}
+          onClick={handleGoogleSignIn}
+          disabled={loading}
+        >
+          Zaloguj się przez Google
+        </Button>
+
+        <Divider sx={{ my: 3 }}>lub</Divider>
+
+        <Box
+          component="form"
+          onSubmit={handleSubmit}
+          sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
+        >
           <TextField
             label="Email"
             type="email"
@@ -73,6 +142,7 @@ export default function LoginPage() {
             required
             fullWidth
             autoComplete="email"
+            placeholder="twoj@email.com"
           />
           <TextField
             label="Hasło"
@@ -83,15 +153,49 @@ export default function LoginPage() {
             fullWidth
             autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
           />
-          <Button type="submit" variant="contained" fullWidth disabled={loading}>
-            {mode === 'login' ? 'Zaloguj' : 'Zarejestruj'}
-          </Button>
-          <Button
-            variant="text"
-            onClick={() => { setMode(mode === 'login' ? 'register' : 'login'); setError(''); }}
+
+          <Box
+            sx={{
+              display: 'flex',
+              flexDirection: 'row',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
           >
-            {mode === 'login' ? 'Nie masz konta? Zarejestruj się' : 'Masz już konto? Zaloguj się'}
+            <FormControlLabel
+              control={
+                <Checkbox
+                  checked={rememberMe}
+                  onChange={(e) => setRememberMe(e.target.checked)}
+                />
+              }
+              label="Zapamiętaj mnie"
+            />
+            {mode === 'login' && (
+              <Link href="#" underline="hover" variant="body2">
+                Nie pamiętasz hasła?
+              </Link>
+            )}
+          </Box>
+
+          <Button type="submit" variant="contained" fullWidth size="large" disabled={loading}>
+            {mode === 'login' ? 'Zaloguj się' : 'Zarejestruj się'}
           </Button>
+
+          <Box sx={{ textAlign: 'center' }}>
+            <Link
+              component="button"
+              type="button"
+              underline="hover"
+              variant="body2"
+              onClick={() => {
+                setMode(mode === 'login' ? 'register' : 'login');
+                setError('');
+              }}
+            >
+              {mode === 'login' ? 'Nie masz konta? Zarejestruj się' : 'Masz już konto? Zaloguj się'}
+            </Link>
+          </Box>
         </Box>
       </Paper>
     </Box>

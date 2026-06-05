@@ -2,7 +2,6 @@ import { Box, AppBar, Toolbar, IconButton, Typography, useMediaQuery, useTheme }
 import MenuIcon from '@mui/icons-material/Menu';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
-import UserAvatarMenu from './UserAvatarMenu';
 import { useUIStore } from '../../store/ui';
 
 const DRAWER_WIDTH = 240;
@@ -24,7 +23,6 @@ export default function AppShell() {
           <Typography variant="h6" sx={{ flexGrow: 1 }}>
             Quizowanie
           </Typography>
-          <UserAvatarMenu />
         </Toolbar>
       </AppBar>
 
