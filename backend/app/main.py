@@ -1,10 +1,20 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.dependencies import init_firebase
 from app.routers import auth, categories, questions, study, users
 
-app = FastAPI(title="Quizowanie API")
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    init_firebase()
+    yield
+
+
+app = FastAPI(title="Quizowanie API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

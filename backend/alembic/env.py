@@ -2,6 +2,7 @@ import asyncio
 from logging.config import fileConfig
 
 from alembic import context
+from sqlalchemy import make_url
 from sqlalchemy.ext.asyncio import create_async_engine
 
 from app.config import settings
@@ -15,6 +16,14 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 target_metadata = Base.metadata
+
+_ASYNC_UNSUPPORTED_PARAMS = {"sslmode", "channel_binding"}
+
+
+def _clean_url():
+    raw = make_url(settings.database_url)
+    query = {k: v for k, v in raw.query.items() if k not in _ASYNC_UNSUPPORTED_PARAMS}
+    return raw.set(query=query)
 
 
 def run_migrations_offline() -> None:
@@ -35,7 +44,7 @@ def do_run_migrations(connection):  # type: ignore[no-untyped-def]
 
 
 async def run_migrations_online() -> None:
-    engine = create_async_engine(settings.database_url)
+    engine = create_async_engine(_clean_url(), connect_args={"ssl": True})
     async with engine.connect() as connection:
         await connection.run_sync(do_run_migrations)
     await engine.dispose()
