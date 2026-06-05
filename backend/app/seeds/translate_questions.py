@@ -209,27 +209,35 @@ async def _translate_batch(
     return {}
 
 
-def _load_done_indices(checkpoint: Path) -> set[int]:
+def _iter_checkpoint(checkpoint: Path) -> "Any":
+    """Yield parsed checkpoint rows, tolerating a truncated final line.
+
+    A Ctrl-C landing mid-write can leave the last line incomplete; skip any
+    unparseable line rather than crashing the next run (those indices simply
+    get re-translated).
+    """
     if not checkpoint.exists():
-        return set()
-    done: set[int] = set()
+        return
     with checkpoint.open(encoding="utf-8") as fh:
         for line in fh:
             line = line.strip()
-            if line:
-                done.add(json.loads(line)["index"])
-    return done
+            if not line:
+                continue
+            try:
+                yield json.loads(line)
+            except json.JSONDecodeError:
+                continue
+
+
+def _load_done_indices(checkpoint: Path) -> set[int]:
+    return {row["index"] for row in _iter_checkpoint(checkpoint)}
 
 
 def _assemble(checkpoint: Path, output: Path) -> int:
     """Read the checkpoint, dedupe by index, write sorted final JSON."""
     by_index: dict[int, dict[str, Any]] = {}
-    with checkpoint.open(encoding="utf-8") as fh:
-        for line in fh:
-            line = line.strip()
-            if line:
-                row = json.loads(line)
-                by_index[row["index"]] = row["record"]
+    for row in _iter_checkpoint(checkpoint):
+        by_index[row["index"]] = row["record"]
     records = [by_index[i] for i in sorted(by_index)]
     output.write_text(
         json.dumps(records, ensure_ascii=False, indent=2), encoding="utf-8"
