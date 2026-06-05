@@ -16,6 +16,8 @@ Python 3.12 with a local `.venv`:
 source .venv/bin/activate
 ```
 
+The venv is at backend/.venv
+
 The `dev/` directory contains planning docs and is git-ignored.
 
 ## Architecture Decisions (Planned)
