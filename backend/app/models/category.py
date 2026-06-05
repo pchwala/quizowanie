@@ -1,0 +1,17 @@
+import uuid
+
+from sqlalchemy import String, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column
+
+from app.database import Base
+
+
+class Category(Base):
+    __tablename__ = "categories"
+
+    id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
+    name: Mapped[str] = mapped_column(String(200))
+    slug: Mapped[str] = mapped_column(String(200), unique=True, index=True)
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("categories.id"), nullable=True
+    )
