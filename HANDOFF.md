@@ -2,7 +2,7 @@
 
 **Date:** 2026-06-05
 **Branch:** `worktree-db-question-types` (in git worktree `.claude/worktrees/db-question-types`)
-**Base:** `main` — this branch is **4 commits ahead, not yet merged**.
+**Base:** `feature` — this branch is **merged**.
 **Scope:** backend only (`backend/`).
 
 ---
@@ -97,15 +97,13 @@ shape, and (2) the data is English while the app is Polish-only. This session:
 - **Booleans:** keep `True`/`False` in data; localize in UI.
 - **Moderation strategy:** AI triage to auto-approve/drop the obvious, human reviews
   only the middle band. **No crowd moderation for MVP** (maybe a "report" button later).
-- **Re-translation:** user is re-running the FULL translation with the improved prompt
-  (cheap enough). A plain re-run won't help unless the checkpoint is cleared (see caveats).
 
 ---
 
 ## 4. Dataset facts
 
 - `data/all_questions.json`: **4738** questions (not 5000), git-ignored, only in the
-  **main checkout** (NOT in the worktree).
+  **feature checkout** (NOT in the worktree).
 - Types present: `multiple` (4021), `boolean` (717). **No `question` type** in this data.
 - Difficulty: medium 2162 / easy 1587 / hard 989.
 - 24 distinct categories (largest: Video Games 1106, Music 418, General Knowledge 401).
@@ -181,7 +179,7 @@ python -m app.seeds.triage_questions
 
 - **Paths:** both scripts default to `<repo-root>/data/`. They derive repo root from
   `Path(__file__).resolve().parents[3]`. **In the worktree `data/` does not exist**
-  (git-ignored, only in the main checkout). Run from the main checkout after merging,
+  (git-ignored, only in the feature checkout). Run from the feature checkout after merging,
   or pass explicit `--input/--output/--polish/--source`.
 - **Re-translation after prompt change:** the checkpoint skips done indices, so a plain
   re-run will NOT pick up the improved (`12ea8da`) prompt. Delete
