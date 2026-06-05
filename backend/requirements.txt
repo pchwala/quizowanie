@@ -7,4 +7,3 @@ pydantic-settings
 firebase-admin
 python-dotenv
 psycopg2-binary
-acyncio
