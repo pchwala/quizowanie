@@ -6,7 +6,7 @@ class Settings(BaseSettings):
     firebase_project_id: str
     cors_origins: list[str] = ["http://localhost:5173"]
 
-    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
 
 settings = Settings()  # type: ignore[call-arg]
