@@ -1,10 +1,28 @@
 import { useState } from 'react';
 import { Box, Paper, TextField, Button, Typography, Alert } from '@mui/material';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword, FirebaseError } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
 
 type Mode = 'login' | 'register';
+
+const FIREBASE_ERRORS: Record<string, string> = {
+  'auth/invalid-email': 'Nieprawidłowy adres email.',
+  'auth/user-not-found': 'Nie znaleziono konta o podanym adresie email.',
+  'auth/wrong-password': 'Nieprawidłowe hasło.',
+  'auth/invalid-credential': 'Nieprawidłowy email lub hasło.',
+  'auth/email-already-in-use': 'Konto z tym adresem email już istnieje.',
+  'auth/weak-password': 'Hasło jest za słabe. Użyj co najmniej 6 znaków.',
+  'auth/too-many-requests': 'Za dużo prób logowania. Spróbuj ponownie za chwilę.',
+  'auth/network-request-failed': 'Błąd sieci. Sprawdź połączenie z internetem.',
+};
+
+function getFirebaseErrorMessage(err: unknown): string {
+  if (err instanceof FirebaseError && FIREBASE_ERRORS[err.code]) {
+    return FIREBASE_ERRORS[err.code];
+  }
+  return 'Wystąpił błąd. Spróbuj ponownie.';
+}
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -26,7 +44,7 @@ export default function LoginPage() {
       }
       navigate('/study', { replace: true });
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Wystąpił błąd. Spróbuj ponownie.');
+      setError(getFirebaseErrorMessage(err));
     } finally {
       setLoading(false);
     }
