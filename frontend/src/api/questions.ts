@@ -1,5 +1,5 @@
 import client from './client';
-import { Question, QuestionSource } from '../types/api';
+import { type Question, type QuestionSource } from '../types/api';
 
 export interface QuestionFilters {
   category_id?: string;

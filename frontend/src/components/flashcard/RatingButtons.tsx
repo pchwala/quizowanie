@@ -1,5 +1,5 @@
 import { Box, Button } from '@mui/material';
-import { AnswerQuality } from '../../types/api';
+import { type AnswerQuality } from '../../types/api';
 
 interface Props {
   onRate: (quality: AnswerQuality) => void;

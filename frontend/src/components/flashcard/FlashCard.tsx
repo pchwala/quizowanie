@@ -1,5 +1,5 @@
 import { Box, Paper, Typography } from '@mui/material';
-import { Question } from '../../types/api';
+import { type Question } from '../../types/api';
 
 interface Props {
   question: Question;
@@ -57,7 +57,7 @@ export default function FlashCard({ question, isFlipped, onFlip }: Props) {
           elevation={3}
           sx={{ ...cardFace, transform: 'rotateY(180deg)', gap: 1.5, overflowY: 'auto' }}
         >
-          <Typography variant="h5" align="center" fontWeight="bold">
+          <Typography variant="h5" align="center" sx={{ fontWeight: 'bold' }}>
             {question.answer}
           </Typography>
           {question.explanation && (
@@ -69,7 +69,7 @@ export default function FlashCard({ question, isFlipped, onFlip }: Props) {
           )}
           {question.mnemonic && (
             <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 1.5 }}>
-              <Typography variant="body2" color="text.secondary" fontStyle="italic">
+              <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
                 Mnemonika: {question.mnemonic}
               </Typography>
             </Box>

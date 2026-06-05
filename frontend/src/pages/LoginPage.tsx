@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { Box, Paper, TextField, Button, Typography, Alert } from '@mui/material';
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword, FirebaseError } from 'firebase/auth';
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { FirebaseError } from 'firebase/app';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
 

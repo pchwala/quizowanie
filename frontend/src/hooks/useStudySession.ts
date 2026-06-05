@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { StudySession, Question, AnswerQuality } from '../types/api';
+import { type StudySession, type Question, type AnswerQuality } from '../types/api';
 import * as studyApi from '../api/study';
 
 export function useStudySession() {

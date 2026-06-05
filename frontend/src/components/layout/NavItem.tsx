@@ -1,6 +1,6 @@
 import { ListItem, ListItemButton, ListItemIcon, ListItemText } from '@mui/material';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { ReactNode } from 'react';
+import { type ReactNode } from 'react';
 
 interface Props {
   label: string;

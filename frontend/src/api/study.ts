@@ -1,5 +1,5 @@
 import client from './client';
-import { StudySession, Question, AnswerQuality } from '../types/api';
+import { type StudySession, type Question, type AnswerQuality } from '../types/api';
 
 export const startSession = (categoryIds?: string[]): Promise<StudySession> =>
   client.post('/study/sessions', { category_id: categoryIds?.[0] ?? null }).then((r) => r.data);

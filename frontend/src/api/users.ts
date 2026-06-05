@@ -1,5 +1,5 @@
 import client from './client';
-import { UserStats } from '../types/api';
+import { type UserStats } from '../types/api';
 
 export const getMe = () => client.post('/auth/me').then((r) => r.data);
 
