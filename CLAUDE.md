@@ -18,7 +18,9 @@ source .venv/bin/activate
 
 The venv is at backend/.venv
 
-The `dev/` directory contains planning docs and is git-ignored.
+The `dev/` directory contains planning docs.
+
+Do not create working branches, edit in feature branch so user can see edits live in editor. No risk as user only runs one instance at a time.
 
 ## Architecture Decisions (Planned)
 
