@@ -10,7 +10,7 @@ The app is Polish and targets a Polish audience exclusively.
 
 ## Development Environment
 
-Python 3.12 with a local `.venv`:
+Python 3.14 with a local `.venv`:
 
 ```bash
 source .venv/bin/activate

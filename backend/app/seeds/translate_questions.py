@@ -33,6 +33,9 @@ import html
 import json
 from pathlib import Path
 from typing import Any
+from dotenv import load_dotenv
+
+load_dotenv(Path(__file__).resolve().parents[2] / ".env") # this script will be run only locally, so it's fine to load the .env here for convenience
 
 # backend/app/seeds/translate_questions.py -> repo root is parents[3]
 _REPO_ROOT = Path(__file__).resolve().parents[3]
@@ -81,7 +84,7 @@ SYSTEM_PROMPT = (
     "albumów, seriali), nazw marek i produktów, imion i nazwisk osób, nazw "
     "zespołów — zostaw je w oryginale.\n"
     "- Zachowaj liczby, jednostki, symbole i kod bez zmian.\n"
-    "- Tłumacz rzeczowniki pospolite (np. kształty, kolory, zwierzęta, kraje).\n"
+    "- Tłumacz rzeczowniki pospolite (np. kształty, kolory, kraje, nazwy zwierząt, roślin).\n"
     "- Nie dodawaj wyjaśnień ani komentarzy.\n"
     "- Pole 'answers' w odpowiedzi MUSI mieć tę samą długość i kolejność co w "
     "danych wejściowych. Pole 'index' musi pozostać niezmienione."
