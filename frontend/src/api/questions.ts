@@ -1,5 +1,5 @@
 import client from './client';
-import { type Question, type QuestionSource } from '../types/api';
+import { type BrowseQuestion, type QuestionDetail, type QuestionSource, type QuestionType } from '../types/api';
 
 export interface QuestionFilters {
   category_id?: string;
@@ -10,8 +10,15 @@ export interface QuestionFilters {
   offset?: number;
 }
 
-export const getQuestions = (params?: QuestionFilters): Promise<Question[]> =>
+export interface BrowseFilters extends QuestionFilters {
+  type?: QuestionType;
+}
+
+export const getQuestions = (params?: QuestionFilters): Promise<BrowseQuestion[]> =>
   client.get('/questions', { params }).then((r) => r.data);
 
-export const getQuestion = (id: string): Promise<Question> =>
+export const getQuestion = (id: string): Promise<QuestionDetail> =>
   client.get(`/questions/${id}`).then((r) => r.data);
+
+export const getBrowseQuestions = (params?: BrowseFilters): Promise<QuestionDetail[]> =>
+  client.get('/browse/questions', { params }).then((r) => r.data);

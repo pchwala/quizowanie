@@ -11,8 +11,30 @@ export interface Category {
   parent_id: string | null;
 }
 
-export type QuestionSource = '1z10_archive' | 'milionerzy_archive' | 'pubquiz_archive';
+export type QuestionSource = '1z10_archive' | 'milionerzy_archive' | 'pubquiz_archive' | 'opentdb';
 
+export type QuestionType = 'multiple' | 'boolean' | 'question';
+
+// Used by the browse page — no answer exposed
+export interface BrowseQuestion {
+  id: string;
+  type: QuestionType;
+  text: string;
+  source: QuestionSource;
+  difficulty: number | null;
+  category_id: string;
+  options: string[] | null;
+}
+
+// Returned by GET /questions/:id — includes answer (reveal after submission)
+export interface QuestionDetail extends BrowseQuestion {
+  answer: string;
+  payload: Record<string, unknown>;
+  explanation: string | null;
+  mnemonic: string | null;
+}
+
+// Legacy shape used by the study session flow
 export interface Question {
   id: string;
   text: string;
