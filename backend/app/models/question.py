@@ -31,6 +31,12 @@ class QuestionType(str, enum.Enum):
     boolean = "boolean"
 
 
+class VerificationStatus(str, enum.Enum):
+    pending = "pending"
+    verified = "verified"
+    rejected = "rejected"
+
+
 class Question(Base):
     __tablename__ = "questions"
 
@@ -44,6 +50,9 @@ class Question(Base):
     explanation: Mapped[str | None] = mapped_column(Text, nullable=True)
     mnemonic: Mapped[str | None] = mapped_column(Text, nullable=True)
     source: Mapped[QuestionSource] = mapped_column(SAEnum(QuestionSource))
+    verification_status: Mapped[VerificationStatus] = mapped_column(
+        SAEnum(VerificationStatus), default=VerificationStatus.pending
+    )
     difficulty: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

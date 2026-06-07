@@ -203,3 +203,22 @@ python -m app.seeds.triage_questions
   multiple/boolean rebuild, category reaches payload, truncated-checkpoint tolerance.
 - Triage offline logic tested: bucket routing, EN/PL alignment, answer extraction,
   assembly (buckets/flags/review queue), length-mismatch guard.
+
+
+## Additional
+Output of running triage:
+
+Scored 4738 questions:
+  approve : 1748
+  review  : 2882
+  drop    : 108
+Top flags:
+    706  niche
+    130  awkward_phrasing
+    104  us_centric
+     29  factual_doubt
+     26  mistranslation
+     21  leftover_english
+     15  grammar
+      6  ambiguous
+      5  untranslatable_wordplay
