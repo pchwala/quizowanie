@@ -1,8 +1,10 @@
+import uuid
+
 from pydantic import BaseModel
 
 
 class WeakCategory(BaseModel):
-    category_id: str
+    category_id: uuid.UUID
     category_name: str
     avg_quality: float
 
