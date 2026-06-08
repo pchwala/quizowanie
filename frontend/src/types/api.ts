@@ -64,3 +64,7 @@ export interface UserStats {
 }
 
 export type AnswerQuality = 0 | 3 | 4 | 5;
+
+export interface UserPreferences {
+  show_options: boolean;
+}

@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db, get_current_user
 from app.models.user import User
 from app.schemas.stats import UserStatsResponse
+from app.schemas.user import UserPreferences
 from app.services.stats import get_user_stats
 
 router = APIRouter(prefix="/users", tags=["users"])
@@ -15,3 +16,23 @@ async def get_my_stats(
     current_user: User = Depends(get_current_user),
 ) -> object:
     return await get_user_stats(db, current_user.id)
+
+
+@router.get("/me/preferences", response_model=UserPreferences)
+async def get_my_preferences(
+    current_user: User = Depends(get_current_user),
+) -> UserPreferences:
+    return UserPreferences(**(current_user.preferences or {}))
+
+
+@router.patch("/me/preferences", response_model=UserPreferences)
+async def update_my_preferences(
+    body: UserPreferences,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> UserPreferences:
+    current_user.preferences = {**(current_user.preferences or {}), **body.model_dump()}
+    db.add(current_user)
+    await db.commit()
+    await db.refresh(current_user)
+    return UserPreferences(**current_user.preferences)

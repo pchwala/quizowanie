@@ -4,25 +4,32 @@ import { type StudySession, type QuestionDetail, type AnswerQuality } from '../t
 import * as studyApi from '../api/study';
 import { getQuestion } from '../api/questions';
 
-export function useStudySession() {
+interface UseStudySessionOptions {
+  showOptions?: boolean;
+}
+
+export function useStudySession({ showOptions = true }: UseStudySessionOptions = {}) {
   const queryClient = useQueryClient();
   const [session, setSession] = useState<StudySession | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<QuestionDetail | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [answered, setAnswered] = useState(0);
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
 
-  // Refs so the keyboard handler always sees current values without re-registering
   const sessionRef = useRef(session);
   const isFlippedRef = useRef(isFlipped);
+  const currentQuestionRef = useRef(currentQuestion);
   sessionRef.current = session;
   isFlippedRef.current = isFlipped;
+  currentQuestionRef.current = currentQuestion;
 
   const fetchNext = async (sessionId: string) => {
     const brief = await studyApi.getNextQuestion(sessionId);
     if (brief === null) {
       setCurrentQuestion(null);
       setIsFlipped(false);
+      setSelectedOption(null);
       setIsComplete(true);
       return;
     }
@@ -31,6 +38,7 @@ export function useStudySession() {
     // front face loads new question — no flash of new answer during flip animation.
     setCurrentQuestion(detail);
     setIsFlipped(false);
+    setSelectedOption(null);
   };
 
   const startSession = async (categoryIds?: string[]) => {
@@ -43,6 +51,11 @@ export function useStudySession() {
 
   const flipCard = useCallback(() => setIsFlipped(true), []);
 
+  const selectOption = useCallback((option: string) => {
+    setSelectedOption(option);
+    setIsFlipped(true);
+  }, []);
+
   const submitAnswer = async (quality: AnswerQuality) => {
     const s = sessionRef.current;
     if (!s || !currentQuestion) return;
@@ -51,9 +64,11 @@ export function useStudySession() {
     await fetchNext(s.id);
   };
 
-  // Keep a ref to submitAnswer so the keyboard handler always calls the latest version
   const submitAnswerRef = useRef(submitAnswer);
   submitAnswerRef.current = submitAnswer;
+
+  const selectOptionRef = useRef(selectOption);
+  selectOptionRef.current = selectOption;
 
   const endSession = async () => {
     if (sessionRef.current) {
@@ -62,6 +77,7 @@ export function useStudySession() {
     setSession(null);
     setCurrentQuestion(null);
     setIsFlipped(false);
+    setSelectedOption(null);
     setIsComplete(false);
     setAnswered(0);
     queryClient.invalidateQueries({ queryKey: ['userStats'] });
@@ -70,11 +86,27 @@ export function useStudySession() {
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (!sessionRef.current) return;
-      if (!isFlippedRef.current && e.code === 'Space') {
-        e.preventDefault();
-        setIsFlipped(true);
+
+      if (!isFlippedRef.current) {
+        // Option selection via keyboard (1-4) when options are shown
+        const q = currentQuestionRef.current;
+        if (showOptions && q && q.type !== 'question' && q.options) {
+          const idx = parseInt(e.key) - 1;
+          if (!isNaN(idx) && idx >= 0 && idx < q.options.length) {
+            e.preventDefault();
+            selectOptionRef.current(q.options[idx]);
+            return;
+          }
+        }
+        // Space flips when not picking options
+        if (e.code === 'Space') {
+          e.preventDefault();
+          setIsFlipped(true);
+        }
         return;
       }
+
+      // Post-flip: 1-4 rate quality
       if (isFlippedRef.current) {
         const map: Record<string, AnswerQuality> = { '1': 0, '2': 3, '3': 4, '4': 5 };
         const quality = map[e.key];
@@ -83,16 +115,18 @@ export function useStudySession() {
     };
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
-  }, []);
+  }, [showOptions]);
 
   return {
     session,
     currentQuestion,
     isFlipped,
     isComplete,
+    selectedOption,
     progress: { answered },
     startSession,
     flipCard,
+    selectOption,
     submitAnswer,
     endSession,
   };

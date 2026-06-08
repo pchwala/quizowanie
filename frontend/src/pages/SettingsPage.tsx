@@ -1,9 +1,18 @@
 import { useState } from 'react';
-import { Alert, Box, Button, TextField, Typography } from '@mui/material';
+import {
+  Alert,
+  Box,
+  Button,
+  FormControlLabel,
+  Switch,
+  TextField,
+  Typography,
+} from '@mui/material';
 import { updateProfile, signOut } from 'firebase/auth';
 import { useNavigate } from 'react-router-dom';
 import { auth } from '../firebase';
 import { useAuth } from '../contexts/AuthContext';
+import { useUserPreferences } from '../hooks/useUserPreferences';
 
 export default function SettingsPage() {
   const { user } = useAuth();
@@ -12,6 +21,7 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { preferences, updatePreferences } = useUserPreferences();
 
   const handleSave = async () => {
     if (!auth.currentUser) return;
@@ -50,6 +60,28 @@ export default function SettingsPage() {
         <Button variant="contained" onClick={handleSave} disabled={saving}>
           {saving ? 'Zapisywanie…' : 'Zapisz'}
         </Button>
+      </Box>
+
+      <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+        <Typography variant="subtitle1">Nauka</Typography>
+        <FormControlLabel
+          control={
+            <Switch
+              checked={preferences.show_options}
+              onChange={() =>
+                updatePreferences({ show_options: !preferences.show_options })
+              }
+            />
+          }
+          label={
+            <Box>
+              <Typography variant="body2">Pokazuj możliwe odpowiedzi</Typography>
+              <Typography variant="caption" color="text.secondary">
+                Dla pytań wielokrotnego wyboru i prawda/fałsz — ułatwia naukę
+              </Typography>
+            </Box>
+          }
+        />
       </Box>
 
       <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>

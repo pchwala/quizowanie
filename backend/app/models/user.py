@@ -1,7 +1,9 @@
 import uuid
 from datetime import datetime, timezone
+from typing import Any
 
 from sqlalchemy import String, DateTime
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.database import Base
@@ -15,4 +17,7 @@ class User(Base):
     email: Mapped[str] = mapped_column(String)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
+    )
+    preferences: Mapped[dict[str, Any]] = mapped_column(
+        JSONB, server_default="{}", default=dict
     )
