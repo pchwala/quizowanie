@@ -1,8 +1,8 @@
 import { Box, Paper, Typography } from '@mui/material';
-import { type Question } from '../../types/api';
+import { type QuestionDetail } from '../../types/api';
 
 interface Props {
-  question: Question;
+  question: QuestionDetail;
   isFlipped: boolean;
   onFlip: () => void;
 }

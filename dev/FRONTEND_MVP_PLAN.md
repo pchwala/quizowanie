@@ -189,7 +189,9 @@ StudyPage mounts
     │       │ POST /study/sessions
     │       ▼
     └─ active session → FlashCard loop
-            │ GET /study/sessions/:id/next
+            │ GET /study/sessions/:id/next  → QuestionResponse (no answer)
+            │ GET /questions/:id            → QuestionDetail   (answer + explanation + mnemonic)
+            │ (two sequential calls per question)
             ▼
          FlashCard (question side)
             │ user taps card or presses Space
@@ -198,8 +200,10 @@ StudyPage mounts
             │ user taps Again / Hard / Good / Easy
             │ POST /study/sessions/:id/answer  { question_id, quality }
             ▼
-         next question (optimistic prefetch) OR SessionComplete
+         next question OR SessionComplete
 ```
+
+> **Why two calls?** `GET /study/sessions/:id/next` intentionally withholds the answer (it is the question-reveal endpoint). The answer is only available via `GET /questions/:id` (`QuestionDetail`) or from `POST .../answer` response — but the POST requires a quality rating that the user has not yet given. Fetching the detail immediately after receiving the next question ID is the correct fix.
 
 Quality mapping:
 | Button | quality |
@@ -263,7 +267,7 @@ Encapsulates session state so `StudyPage` stays thin:
 // returns
 {
   session: StudySession | null,
-  currentQuestion: Question | null,
+  currentQuestion: QuestionDetail | null,   // QuestionDetail — has answer, explanation, mnemonic
   isFlipped: boolean,
   progress: { answered: number },
   isComplete: boolean,
@@ -274,7 +278,13 @@ Encapsulates session state so `StudyPage` stays thin:
 }
 ```
 
-Next question is fetched optimistically: after the user taps a rating button, the POST fires and the next `GET .../next` is triggered in parallel via TanStack Query prefetching.
+`fetchNext` (internal) chains two calls:
+1. `GET /study/sessions/:id/next` → gets the question ID and brief metadata
+2. `GET /questions/:id` → gets the full `QuestionDetail` including answer
+
+`currentQuestion` holds `QuestionDetail`. The legacy `Question` type in `api.ts` is unused in the study flow and should be removed.
+
+`submitAnswer` in `api/study.ts` is currently typed `Promise<void>` — keep it that way. The answer is already available from the detail fetch; the POST response (`SubmitAnswerResponse`) can be ignored.
 
 ---
 
@@ -326,12 +336,24 @@ TanStack Query hooks in `src/hooks/` wrap these with `useQuery` / `useMutation`.
 
 ---
 
+## Known Bugs (to fix)
+
+### FlashCard shows no answer on flip
+**Root cause**: `GET /study/sessions/:id/next` returns `QuestionResponse` — no `answer`, `explanation`, or `mnemonic` fields. The frontend `Question` type assumed these fields would be present but they never are. `submitAnswer` in `api/study.ts` is `Promise<void>` so even the `SubmitAnswerResponse.correct_answer` is discarded.
+
+**Fix**:
+1. In `useStudySession.fetchNext`, chain `GET /questions/:id` after getting the next question. Set `currentQuestion` to the resulting `QuestionDetail`.
+2. Change `currentQuestion` state type from `Question | null` to `QuestionDetail | null`.
+3. `FlashCard` prop type changes from `Question` to `QuestionDetail`.
+4. Remove the legacy `Question` type from `api.ts` (it was a placeholder that never matched any backend response).
+
+---
+
 ## Key Implementation Notes
 
-- **Keyboard shortcut**: Space flips the card. 1/2/3/4 keys map to Again/Hard/Good/Easy after flip. Add via `useEffect` + `keydown` listener scoped to the session page.
-- **Optimistic prefetch**: After submitting an answer, immediately call `queryClient.prefetchQuery(['nextQuestion', sessionId])` so the next card appears instantly.
-- **Strict TypeScript**: Enable `"strict": true` in `tsconfig.json`. Define all API response shapes in `src/types/api.ts` and import from there — do not use `any`.
-- **No category nesting in UI for MVP**: Even though the backend supports parent/child categories, display categories as a flat list. Nesting in the UI can be added later without backend changes.
+- **Keyboard shortcut**: Space flips the card. 1/2/3/4 keys map to Again/Hard/Good/Easy after flip. Implemented via `useEffect` + `keydown` listener in `useStudySession`.
+- **Strict TypeScript**: `"strict": true` in `tsconfig.json`. All API response shapes defined in `src/types/api.ts`.
+- **No category nesting in UI for MVP**: Display categories as a flat list. Nesting can be added later without backend changes.
 - **Firebase Hosting rewrites**: `firebase.json` must rewrite all paths to `index.html` so React Router handles client-side navigation.
 
 ```json

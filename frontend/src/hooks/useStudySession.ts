@@ -1,12 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { type StudySession, type Question, type AnswerQuality } from '../types/api';
+import { type StudySession, type QuestionDetail, type AnswerQuality } from '../types/api';
 import * as studyApi from '../api/study';
+import { getQuestion } from '../api/questions';
 
 export function useStudySession() {
   const queryClient = useQueryClient();
   const [session, setSession] = useState<StudySession | null>(null);
-  const [currentQuestion, setCurrentQuestion] = useState<Question | null>(null);
+  const [currentQuestion, setCurrentQuestion] = useState<QuestionDetail | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [answered, setAnswered] = useState(0);
@@ -18,10 +19,16 @@ export function useStudySession() {
   isFlippedRef.current = isFlipped;
 
   const fetchNext = async (sessionId: string) => {
-    const question = await studyApi.getNextQuestion(sessionId);
-    setCurrentQuestion(question);
+    const brief = await studyApi.getNextQuestion(sessionId);
+    if (brief === null) {
+      setCurrentQuestion(null);
+      setIsFlipped(false);
+      setIsComplete(true);
+      return;
+    }
+    const detail = await getQuestion(brief.id);
+    setCurrentQuestion(detail);
     setIsFlipped(false);
-    if (question === null) setIsComplete(true);
   };
 
   const startSession = async (categoryIds?: string[]) => {

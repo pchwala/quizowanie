@@ -34,17 +34,6 @@ export interface QuestionDetail extends BrowseQuestion {
   mnemonic: string | null;
 }
 
-// Legacy shape used by the study session flow
-export interface Question {
-  id: string;
-  text: string;
-  answer: string;
-  explanation: string | null;
-  mnemonic: string | null;
-  source: QuestionSource;
-  difficulty: number | null;
-  category_id: string;
-}
 
 export interface StudySession {
   id: string;
