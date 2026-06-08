@@ -55,27 +55,32 @@ export default function FlashCard({ question, isFlipped, onFlip }: Props) {
           </Typography>
         </Paper>
 
-        {/* Back — answer + explanation + mnemonic */}
+        {/* Back — answer + explanation + mnemonic; only rendered while flipped so the
+            new question's answer is never visible during the flip-back animation. */}
         <Paper
           elevation={3}
           sx={{ ...cardFace, transform: 'rotateY(180deg)', gap: 1.5, overflowY: 'auto' }}
         >
-          <Typography variant="h5" align="center" sx={{ fontWeight: 'bold' }}>
-            {question.answer}
-          </Typography>
-          {question.explanation && (
-            <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 1.5 }}>
-              <Typography variant="body2" color="text.secondary">
-                {question.explanation}
+          {isFlipped && (
+            <>
+              <Typography variant="h5" align="center" sx={{ fontWeight: 'bold' }}>
+                {question.answer}
               </Typography>
-            </Box>
-          )}
-          {question.mnemonic && (
-            <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 1.5 }}>
-              <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
-                Mnemonika: {question.mnemonic}
-              </Typography>
-            </Box>
+              {question.explanation && (
+                <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 1.5 }}>
+                  <Typography variant="body2" color="text.secondary">
+                    {question.explanation}
+                  </Typography>
+                </Box>
+              )}
+              {question.mnemonic && (
+                <Box sx={{ borderTop: 1, borderColor: 'divider', pt: 1.5 }}>
+                  <Typography variant="body2" color="text.secondary" sx={{ fontStyle: 'italic' }}>
+                    Mnemonika: {question.mnemonic}
+                  </Typography>
+                </Box>
+              )}
+            </>
           )}
         </Paper>
       </Box>

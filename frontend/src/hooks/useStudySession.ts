@@ -19,15 +19,18 @@ export function useStudySession() {
   isFlippedRef.current = isFlipped;
 
   const fetchNext = async (sessionId: string) => {
-    setIsFlipped(false);
     const brief = await studyApi.getNextQuestion(sessionId);
     if (brief === null) {
       setCurrentQuestion(null);
+      setIsFlipped(false);
       setIsComplete(true);
       return;
     }
     const detail = await getQuestion(brief.id);
+    // Batched: back face clears (isFlipped=false stops rendering answer),
+    // front face loads new question — no flash of new answer during flip animation.
     setCurrentQuestion(detail);
+    setIsFlipped(false);
   };
 
   const startSession = async (categoryIds?: string[]) => {
