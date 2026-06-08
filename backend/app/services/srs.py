@@ -1,9 +1,38 @@
+import uuid
+from datetime import date, datetime, timedelta, timezone
+
 from app.models.progress import UserQuestionProgress
 
 
+def make_progress(user_id: uuid.UUID, question_id: uuid.UUID) -> UserQuestionProgress:
+    return UserQuestionProgress(
+        user_id=user_id,
+        question_id=question_id,
+        repetitions=0,
+        easiness_factor=2.5,
+        interval_days=0,
+    )
+
+
 def apply_sm2(progress: UserQuestionProgress, quality: int) -> UserQuestionProgress:
-    # TODO: implement SM-2 algorithm
-    # quality 0-2 → wrong, reset repetitions to 0, interval = 1
-    # quality 3-5 → correct, advance interval and update easiness_factor
-    # next_review_at = date.today() + timedelta(days=interval)
-    raise NotImplementedError
+    if quality >= 3:
+        if progress.repetitions == 0:
+            interval = 1
+        elif progress.repetitions == 1:
+            interval = 6
+        else:
+            interval = round(progress.interval_days * progress.easiness_factor)
+        progress.repetitions += 1
+    else:
+        progress.repetitions = 0
+        interval = 1
+
+    progress.easiness_factor = max(
+        1.3,
+        progress.easiness_factor + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02),
+    )
+    progress.interval_days = interval
+    progress.next_review_at = date.today() + timedelta(days=interval)
+    progress.last_reviewed_at = datetime.now(timezone.utc)
+    progress.last_quality = quality
+    return progress

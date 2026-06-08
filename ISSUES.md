@@ -1,0 +1,1 @@
+1. getting the page out of focus and focusing the tab again - re requests questions and categories again with axios - wchich makes answers to get mixed up - not intended behavior - looks weird. proposed fixes - either do not request again or do not mix up the questions
