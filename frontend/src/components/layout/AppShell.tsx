@@ -3,6 +3,7 @@ import MenuIcon from '@mui/icons-material/Menu';
 import { Outlet } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import { useUIStore } from '../../store/ui';
+import ErrorBoundary from '../common/ErrorBoundary';
 
 const DRAWER_WIDTH = 240;
 
@@ -41,7 +42,9 @@ export default function AppShell() {
           width: { md: `calc(100% - ${DRAWER_WIDTH}px)` },
         }}
       >
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </Box>
     </Box>
   );
