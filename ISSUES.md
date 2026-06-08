@@ -1,1 +1,2 @@
 1. getting the page out of focus and focusing the tab again - re requests questions and categories again with axios - wchich makes answers to get mixed up - not intended behavior - looks weird. proposed fixes - either do not request again or do not mix up the questions
+2. when the card is flipped on an answer and then the user goes to the next question - the card flips back to the question side. but for a brief moment there is an answer to the next question visible

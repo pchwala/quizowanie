@@ -13,6 +13,13 @@ export interface Category {
 
 export type QuestionSource = '1z10_archive' | 'milionerzy_archive' | 'pubquiz_archive' | 'opentdb';
 
+export const SOURCE_LABELS: Record<QuestionSource, string> = {
+  '1z10_archive':      '1 z 10',
+  milionerzy_archive:  'Milionerzy',
+  pubquiz_archive:     'PubQuiz',
+  opentdb:             'OpenTDB',
+};
+
 export type QuestionType = 'multiple' | 'boolean' | 'question';
 
 // Used by the browse page — no answer exposed

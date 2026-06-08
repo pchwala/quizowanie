@@ -19,6 +19,7 @@ import {
 import { useCategories } from '../hooks/useCategories';
 import { useBrowseQuestions } from '../hooks/useQuestions';
 import type { QuestionDetail, Category, QuestionType } from '../types/api';
+import { SOURCE_LABELS } from '../types/api';
 
 const PAGE_SIZE = 50;
 
@@ -137,6 +138,12 @@ function QuestionCard({
         />
         <Chip
           label={TYPE_LABELS[question.type]}
+          size="small"
+          variant="outlined"
+          sx={{ color: 'text.disabled', borderColor: 'divider' }}
+        />
+        <Chip
+          label={SOURCE_LABELS[question.source]}
           size="small"
           variant="outlined"
           sx={{ color: 'text.disabled', borderColor: 'divider' }}

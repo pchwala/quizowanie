@@ -19,16 +19,15 @@ export function useStudySession() {
   isFlippedRef.current = isFlipped;
 
   const fetchNext = async (sessionId: string) => {
+    setIsFlipped(false);
     const brief = await studyApi.getNextQuestion(sessionId);
     if (brief === null) {
       setCurrentQuestion(null);
-      setIsFlipped(false);
       setIsComplete(true);
       return;
     }
     const detail = await getQuestion(brief.id);
     setCurrentQuestion(detail);
-    setIsFlipped(false);
   };
 
   const startSession = async (categoryIds?: string[]) => {

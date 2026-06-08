@@ -11,7 +11,9 @@ import BrowsePage from './pages/BrowsePage';
 import StatsPage from './pages/StatsPage';
 import SettingsPage from './pages/SettingsPage';
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { refetchOnWindowFocus: false } },
+});
 
 const router = createBrowserRouter([
   { path: '/login', element: <LoginPage /> },

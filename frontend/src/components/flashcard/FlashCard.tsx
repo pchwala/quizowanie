@@ -1,5 +1,5 @@
 import { Box, Paper, Typography } from '@mui/material';
-import { type QuestionDetail } from '../../types/api';
+import { type QuestionDetail, SOURCE_LABELS } from '../../types/api';
 
 interface Props {
   question: QuestionDetail;
@@ -44,6 +44,9 @@ export default function FlashCard({ question, isFlipped, onFlip }: Props) {
       >
         {/* Front — question */}
         <Paper elevation={3} sx={{ ...cardFace, alignItems: 'center' }}>
+          <Typography variant="caption" color="text.disabled" sx={{ mb: 1 }}>
+            {SOURCE_LABELS[question.source]}
+          </Typography>
           <Typography variant="h5" align="center">
             {question.text}
           </Typography>
