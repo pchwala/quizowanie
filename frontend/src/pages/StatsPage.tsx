@@ -1,4 +1,4 @@
-import { Alert, Box, CircularProgress, Skeleton, Typography } from '@mui/material';
+import { Alert, Box, Skeleton, Typography } from '@mui/material';
 import TodayIcon from '@mui/icons-material/Today';
 import SchoolIcon from '@mui/icons-material/School';
 import LocalFireDepartmentIcon from '@mui/icons-material/LocalFireDepartment';

@@ -1,4 +1,5 @@
-import { Card, CardContent, Typography, Box, type ReactNode } from '@mui/material';
+import { Card, CardContent, Typography, Box } from '@mui/material';
+import type { ReactNode } from 'react';
 
 interface Props {
   label: string;
@@ -16,7 +17,7 @@ export default function StatCard({ label, value, icon }: Props) {
             {label}
           </Typography>
         </Box>
-        <Typography variant="h4" fontWeight="bold">
+        <Typography variant="h4" sx={{ fontWeight: 'bold' }}>
           {value}
         </Typography>
       </CardContent>
