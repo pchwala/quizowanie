@@ -10,6 +10,9 @@ The app is Polish and targets a Polish audience exclusively.
 
 ## Development Environment
 
+Project root:
+/home/Projects/quizowanie
+
 Python 3.14 with a local `.venv`:
 
 ```bash
@@ -20,7 +23,7 @@ The venv is at backend/.venv
 
 The `dev/` directory contains planning docs.
 
-Do not create working branches, edit in feature branch so user can see edits live in editor. No risk as user only runs one instance at a time.
+Do not create working branches, edit in current branch
 
 ## Architecture Decisions (Planned)
 
