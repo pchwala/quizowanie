@@ -1,7 +1,8 @@
-import { useSearchParams } from 'react-router-dom';
+import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
+  IconButton,
   Select,
   MenuItem,
   FormControl,
@@ -16,9 +17,10 @@ import {
   Alert,
   Divider,
 } from '@mui/material';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useCategories } from '../hooks/useCategories';
 import { useBrowseQuestions } from '../hooks/useQuestions';
-import type { QuestionDetail, Category, QuestionType } from '../types/api';
+import type { QuestionDetail, Category, QuestionType, QuestionSource } from '../types/api';
 import { SOURCE_LABELS } from '../types/api';
 
 const PAGE_SIZE = 50;
@@ -58,12 +60,10 @@ function buildCategoryOptions(cats: Category[]): { id: string; label: string }[]
       childrenOf.set(c.parent_id, list);
     }
   }
-
   const result: { id: string; label: string }[] = [];
   const parents = cats
     .filter((c) => c.parent_id === null)
     .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
-
   for (const parent of parents) {
     const children = (childrenOf.get(parent.id) ?? []).sort((a, b) =>
       a.name.localeCompare(b.name, 'pl'),
@@ -79,11 +79,8 @@ function buildCategoryOptions(cats: Category[]): { id: string; label: string }[]
   return result;
 }
 
-// ── Answer section ────────────────────────────────────────────────────────────
-
 function AnswerSection({ question }: { question: QuestionDetail }) {
   const payload = question.payload as Record<string, unknown>;
-
   return (
     <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
       {question.type === 'multiple' &&
@@ -96,7 +93,6 @@ function AnswerSection({ question }: { question: QuestionDetail }) {
             variant={opt === question.answer ? 'filled' : 'outlined'}
           />
         ))}
-
       {question.type === 'boolean' &&
         ['Prawda', 'Fałsz'].map((opt) => (
           <Chip
@@ -107,7 +103,6 @@ function AnswerSection({ question }: { question: QuestionDetail }) {
             variant={opt === question.answer ? 'filled' : 'outlined'}
           />
         ))}
-
       {question.type === 'question' && (
         <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 600 }}>
           {(payload['accepted'] as string[] | undefined)?.join(' / ') ?? question.answer}
@@ -117,15 +112,7 @@ function AnswerSection({ question }: { question: QuestionDetail }) {
   );
 }
 
-// ── Question card ─────────────────────────────────────────────────────────────
-
-function QuestionCard({
-  question,
-  categoryName,
-}: {
-  question: QuestionDetail;
-  categoryName: string;
-}) {
+function QuestionCard({ question, categoryName }: { question: QuestionDetail; categoryName: string }) {
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
       <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1 }}>
@@ -142,22 +129,10 @@ function QuestionCard({
           variant="outlined"
           sx={{ color: 'text.disabled', borderColor: 'divider' }}
         />
-        <Chip
-          label={SOURCE_LABELS[question.source]}
-          size="small"
-          variant="outlined"
-          sx={{ color: 'text.disabled', borderColor: 'divider' }}
-        />
       </Box>
-
-      <Typography variant="body1" sx={{ mb: 1.5 }}>
-        {question.text}
-      </Typography>
-
+      <Typography variant="body1" sx={{ mb: 1.5 }}>{question.text}</Typography>
       <Divider sx={{ mb: 1.5 }} />
-
       <AnswerSection question={question} />
-
       {question.explanation && (
         <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
           {question.explanation}
@@ -167,9 +142,9 @@ function QuestionCard({
   );
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-
-export default function BrowsePage() {
+export default function SourceQuestionsPage() {
+  const { source } = useParams<{ source: string }>();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
 
   const categoryId = searchParams.get('category') ?? '';
@@ -184,6 +159,7 @@ export default function BrowsePage() {
   const diffRange = difficulty ? DIFFICULTY_RANGES[difficulty] : null;
 
   const filters = {
+    source:         source as QuestionSource,
     category_id:    categoryId || undefined,
     type:           type || undefined,
     difficulty_min: diffRange?.min,
@@ -193,23 +169,15 @@ export default function BrowsePage() {
   };
 
   const { data, isLoading, isError, isFetching } = useBrowseQuestions(filters);
-  const questions  = data?.items ?? [];
-  const total      = data?.total ?? 0;
-  const pageCount  = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const questions = data?.items ?? [];
+  const total     = data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
   function updateFilter(key: string, value: string) {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (value) next.set(key, value); else next.delete(key);
       next.set('page', '1');
-      return next;
-    });
-  }
-
-  function handlePageChange(p: number) {
-    setSearchParams((prev) => {
-      const next = new URLSearchParams(prev);
-      next.set('page', String(p));
       return next;
     });
   }
@@ -224,17 +192,22 @@ export default function BrowsePage() {
     return cat.name;
   }
 
+  const sourceLabel = source ? (SOURCE_LABELS[source as QuestionSource] ?? source) : '';
   const loading = isLoading || catsLoading;
 
   return (
-    <Box sx={{ maxWidth: 860, mx: 'auto' }}>
-      <Typography variant="h5" sx={{ mb: 3 }}>
-        Przeglądaj pytania
-      </Typography>
+    <Box sx={{ px: 2, pt: 2, pb: 3 }}>
+      {/* Header */}
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
+        <IconButton onClick={() => navigate('/pytania')} size="small">
+          <ArrowBackIcon />
+        </IconButton>
+        <Typography variant="h5" sx={{ fontWeight: 700 }}>{sourceLabel}</Typography>
+      </Box>
 
-      {/* ── Filters ── */}
-      <Stack direction={{ xs: 'column', sm: 'row' }} spacing={2} sx={{ mb: 3, flexWrap: 'wrap' }}>
-        <FormControl size="small" sx={{ minWidth: 220 }}>
+      {/* Filters */}
+      <Stack spacing={1.5} sx={{ mb: 2.5 }}>
+        <FormControl size="small" fullWidth>
           <InputLabel>Kategoria</InputLabel>
           <Select
             value={categoryId}
@@ -243,9 +216,7 @@ export default function BrowsePage() {
           >
             <MenuItem value="">Wszystkie kategorie</MenuItem>
             {categoryOptions.map((opt) => (
-              <MenuItem key={opt.id} value={opt.id}>
-                {opt.label}
-              </MenuItem>
+              <MenuItem key={opt.id} value={opt.id}>{opt.label}</MenuItem>
             ))}
           </Select>
         </FormControl>
@@ -255,6 +226,7 @@ export default function BrowsePage() {
           exclusive
           size="small"
           onChange={(_, v) => updateFilter('difficulty', v ?? '')}
+          sx={{ '& .MuiToggleButton-root': { flex: 1 } }}
         >
           {Object.entries(DIFFICULTY_RANGES).map(([key, { label }]) => (
             <ToggleButton key={key} value={key}>{label}</ToggleButton>
@@ -266,13 +238,13 @@ export default function BrowsePage() {
           exclusive
           size="small"
           onChange={(_, v: QuestionType | null) => updateFilter('type', v ?? '')}
+          sx={{ '& .MuiToggleButton-root': { flex: 1 } }}
         >
           <ToggleButton value="multiple">Wielokrotny</ToggleButton>
           <ToggleButton value="boolean">Prawda/Fałsz</ToggleButton>
         </ToggleButtonGroup>
       </Stack>
 
-      {/* ── Results ── */}
       {isError && (
         <Alert severity="error" sx={{ mb: 2 }}>
           Nie udało się pobrać pytań.
@@ -299,13 +271,12 @@ export default function BrowsePage() {
         </Stack>
       )}
 
-      {/* ── Pagination ── */}
       {!loading && questions.length > 0 && (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
           <Pagination
             count={pageCount}
             page={page}
-            onChange={(_, p) => { handlePageChange(p); window.scrollTo(0, 0); }}
+            onChange={(_, p) => { updateFilter('page', String(p)); window.scrollTo(0, 0); }}
             color="primary"
             siblingCount={1}
           />

@@ -3,7 +3,7 @@ import { type UserPreferences } from '../types/api';
 import { getUserPreferences, updateUserPreferences } from '../api/users';
 
 const QUERY_KEY = ['userPreferences'];
-const DEFAULT_PREFERENCES: UserPreferences = { show_options: true };
+const DEFAULT_PREFERENCES: UserPreferences = { show_options: true, daily_limit: 15 };
 
 export function useUserPreferences() {
   const queryClient = useQueryClient();

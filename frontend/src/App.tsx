@@ -6,10 +6,11 @@ import { AuthProvider } from './contexts/AuthContext';
 import AppShell from './components/layout/AppShell';
 import ProtectedRoute from './components/common/ProtectedRoute';
 import LoginPage from './pages/LoginPage';
-import StudyPage from './pages/StudyPage';
-import BrowsePage from './pages/BrowsePage';
-import StatsPage from './pages/StatsPage';
-import SettingsPage from './pages/SettingsPage';
+import NaukaPage from './pages/NaukaPage';
+import StudySessionPage from './pages/StudySessionPage';
+import PytaniaPage from './pages/PytaniaPage';
+import SourceQuestionsPage from './pages/SourceQuestionsPage';
+import MenuPage from './pages/MenuPage';
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { refetchOnWindowFocus: false } },
@@ -24,11 +25,12 @@ const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <Navigate to="/study" replace /> },
-      { path: '/study', element: <StudyPage /> },
-      { path: '/browse', element: <BrowsePage /> },
-      { path: '/stats', element: <StatsPage /> },
-      { path: '/settings', element: <SettingsPage /> },
+      { index: true, element: <Navigate to="/nauka" replace /> },
+      { path: '/nauka', element: <NaukaPage /> },
+      { path: '/nauka/session', element: <StudySessionPage /> },
+      { path: '/pytania', element: <PytaniaPage /> },
+      { path: '/pytania/:source', element: <SourceQuestionsPage /> },
+      { path: '/menu', element: <MenuPage /> },
     ],
   },
 ]);
