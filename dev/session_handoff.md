@@ -29,8 +29,8 @@ Complete frontend refactor from a desktop MUI sidebar layout to a mobile-first d
 ## Issues to fix next session
 
 ### 1. "Powtórz pytania" broken
-- The `due_today` count from `useUserStats` is non-zero but the UI shows 0
-- Navigating to `/nauka/session` always starts a session regardless (even if nothing is due)
+- The `due_today` count from `useUserStats` is non-zero but the UI shows 0 - (DEV NOTE)or at least it seems so(DEV NOTE)
+- Navigating to `/nauka/session` always starts a session regardless (even if nothing is due) - (DEV NOTE)ask what should be shown(DEV NOTE)
 - `StudySessionPage` calls `startSession()` unconditionally in `useEffect` on mount — it should gate on `mode` and ideally only start if there are questions available
 - Investigate: does the backend's `/users/me/stats` `due_today` field actually reflect SRS-due questions, or is it something else?
 
