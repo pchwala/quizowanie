@@ -14,11 +14,16 @@ export interface BrowseFilters extends QuestionFilters {
   type?: QuestionType;
 }
 
+export interface BrowseQuestionsPage {
+  items: QuestionDetail[];
+  total: number;
+}
+
 export const getQuestions = (params?: QuestionFilters): Promise<BrowseQuestion[]> =>
   client.get('/questions', { params }).then((r) => r.data);
 
 export const getQuestion = (id: string): Promise<QuestionDetail> =>
   client.get(`/questions/${id}`).then((r) => r.data);
 
-export const getBrowseQuestions = (params?: BrowseFilters): Promise<QuestionDetail[]> =>
+export const getBrowseQuestions = (params?: BrowseFilters): Promise<BrowseQuestionsPage> =>
   client.get('/browse/questions', { params }).then((r) => r.data);

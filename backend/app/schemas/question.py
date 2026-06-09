@@ -32,3 +32,8 @@ class QuestionDetailResponse(QuestionResponse):
     payload: dict[str, Any]
     explanation: str | None
     mnemonic: str | None
+
+
+class BrowseQuestionsPage(BaseModel):
+    items: list[QuestionDetailResponse]
+    total: int

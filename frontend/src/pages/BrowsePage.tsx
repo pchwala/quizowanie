@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import {
   Box,
   Typography,
@@ -170,10 +170,12 @@ function QuestionCard({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function BrowsePage() {
-  const [categoryId, setCategoryId] = useState('');
-  const [type, setType] = useState<QuestionType | ''>('');
-  const [difficulty, setDifficulty] = useState('');
-  const [page, setPage] = useState(1);
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const categoryId = searchParams.get('category') ?? '';
+  const type       = (searchParams.get('type') ?? '') as QuestionType | '';
+  const difficulty = searchParams.get('difficulty') ?? '';
+  const page       = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
 
   const { data: categories = [], isLoading: catsLoading } = useCategories();
   const categoryById = new Map(categories.map((c) => [c.id, c]));
@@ -190,7 +192,27 @@ export default function BrowsePage() {
     offset:         (page - 1) * PAGE_SIZE,
   };
 
-  const { data: questions = [], isLoading, isError, isFetching } = useBrowseQuestions(filters);
+  const { data, isLoading, isError, isFetching } = useBrowseQuestions(filters);
+  const questions  = data?.items ?? [];
+  const total      = data?.total ?? 0;
+  const pageCount  = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  function updateFilter(key: string, value: string) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) next.set(key, value); else next.delete(key);
+      next.set('page', '1');
+      return next;
+    });
+  }
+
+  function handlePageChange(p: number) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      next.set('page', String(p));
+      return next;
+    });
+  }
 
   function getCategoryName(id: string): string {
     const cat = categoryById.get(id);
@@ -200,10 +222,6 @@ export default function BrowsePage() {
       return parent ? `${parent.name}: ${cat.name}` : cat.name;
     }
     return cat.name;
-  }
-
-  function handleFilterChange() {
-    setPage(1);
   }
 
   const loading = isLoading || catsLoading;
@@ -221,7 +239,7 @@ export default function BrowsePage() {
           <Select
             value={categoryId}
             label="Kategoria"
-            onChange={(e) => { setCategoryId(e.target.value); handleFilterChange(); }}
+            onChange={(e) => updateFilter('category', e.target.value)}
           >
             <MenuItem value="">Wszystkie kategorie</MenuItem>
             {categoryOptions.map((opt) => (
@@ -236,7 +254,7 @@ export default function BrowsePage() {
           value={difficulty}
           exclusive
           size="small"
-          onChange={(_, v) => { setDifficulty(v ?? ''); handleFilterChange(); }}
+          onChange={(_, v) => updateFilter('difficulty', v ?? '')}
         >
           {Object.entries(DIFFICULTY_RANGES).map(([key, { label }]) => (
             <ToggleButton key={key} value={key}>{label}</ToggleButton>
@@ -247,7 +265,7 @@ export default function BrowsePage() {
           value={type}
           exclusive
           size="small"
-          onChange={(_, v: QuestionType | null) => { setType(v ?? ''); handleFilterChange(); }}
+          onChange={(_, v: QuestionType | null) => updateFilter('type', v ?? '')}
         >
           <ToggleButton value="multiple">Wielokrotny</ToggleButton>
           <ToggleButton value="boolean">Prawda/Fałsz</ToggleButton>
@@ -285,9 +303,9 @@ export default function BrowsePage() {
       {!loading && questions.length > 0 && (
         <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
           <Pagination
-            count={questions.length === PAGE_SIZE ? page + 1 : page}
+            count={pageCount}
             page={page}
-            onChange={(_, p) => { setPage(p); window.scrollTo(0, 0); }}
+            onChange={(_, p) => { handlePageChange(p); window.scrollTo(0, 0); }}
             color="primary"
             siblingCount={1}
           />

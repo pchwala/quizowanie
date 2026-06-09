@@ -1,14 +1,15 @@
+import asyncio
 import random
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_current_user
 from app.models.question import Question, QuestionType, VerificationStatus
 from app.models.user import User
-from app.schemas.question import QuestionDetailResponse, QuestionResponse
+from app.schemas.question import BrowseQuestionsPage, QuestionDetailResponse, QuestionResponse
 
 router = APIRouter(tags=["questions"])
 
@@ -86,7 +87,7 @@ async def list_questions(
     return [_to_response(q) for q in rows]
 
 
-@router.get("/browse/questions", response_model=list[QuestionDetailResponse])
+@router.get("/browse/questions", response_model=BrowseQuestionsPage)
 async def browse_questions(
     category_id: uuid.UUID | None = Query(default=None),
     q_type: QuestionType | None = Query(default=None, alias="type"),
@@ -97,30 +98,43 @@ async def browse_questions(
     offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
-) -> list[QuestionDetailResponse]:
-    stmt = (
+) -> BrowseQuestionsPage:
+    base_where = [
+        Question.is_active.is_(True),
+        Question.verification_status == VerificationStatus.verified,
+    ]
+    if category_id is not None:
+        base_where.append(Question.category_id == category_id)
+    if q_type is not None:
+        base_where.append(Question.type == q_type)
+    if source is not None:
+        base_where.append(Question.source == source)
+    if difficulty_min is not None:
+        base_where.append(Question.difficulty >= difficulty_min)
+    if difficulty_max is not None:
+        base_where.append(Question.difficulty <= difficulty_max)
+
+    items_stmt = (
         select(Question)
-        .where(
-            Question.is_active.is_(True),
-            Question.verification_status == VerificationStatus.verified,
-        )
+        .where(*base_where)
         .order_by(Question.created_at)
         .limit(limit)
         .offset(offset)
     )
-    if category_id is not None:
-        stmt = stmt.where(Question.category_id == category_id)
-    if q_type is not None:
-        stmt = stmt.where(Question.type == q_type)
-    if source is not None:
-        stmt = stmt.where(Question.source == source)
-    if difficulty_min is not None:
-        stmt = stmt.where(Question.difficulty >= difficulty_min)
-    if difficulty_max is not None:
-        stmt = stmt.where(Question.difficulty <= difficulty_max)
+    count_stmt = (
+        select(func.count())
+        .select_from(Question)
+        .where(*base_where)
+    )
 
-    rows = (await db.execute(stmt)).scalars().all()
-    return [_to_detail(q) for q in rows]
+    rows, total = await asyncio.gather(
+        db.execute(items_stmt),
+        db.execute(count_stmt),
+    )
+    return BrowseQuestionsPage(
+        items=[_to_detail(q) for q in rows.scalars().all()],
+        total=total.scalar_one(),
+    )
 
 
 @router.get("/questions/{question_id}", response_model=QuestionDetailResponse)
