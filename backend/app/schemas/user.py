@@ -7,6 +7,7 @@ from pydantic import BaseModel, field_validator
 
 class UserPreferences(BaseModel):
     show_options: bool = True
+    daily_limit: int = 15
 
 
 class UserResponse(BaseModel):

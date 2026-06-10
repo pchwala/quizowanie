@@ -42,9 +42,12 @@ export interface QuestionDetail extends BrowseQuestion {
 }
 
 
+export type StudyMode = 'new' | 'review' | 'mixed';
+
 export interface StudySession {
   id: string;
-  category_id: string | null;
+  category_ids: string[] | null;
+  mode: StudyMode;
   started_at: string;
   questions_answered: number;
 }

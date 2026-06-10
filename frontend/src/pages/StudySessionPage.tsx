@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
-import { Box, IconButton } from '@mui/material';
+import { Box, Button, IconButton, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import CelebrationIcon from '@mui/icons-material/Celebration';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useStudySession } from '../hooks/useStudySession';
 import { useUserPreferences } from '../hooks/useUserPreferences';
@@ -15,10 +16,41 @@ interface SessionState {
   mode?: 'new' | 'review';
 }
 
+function EmptyState({ mode, onBack }: { mode: 'new' | 'review'; onBack: () => void }) {
+  return (
+    <Box
+      sx={{
+        height: '100%',
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 2,
+        px: 3,
+        textAlign: 'center',
+      }}
+    >
+      <CelebrationIcon sx={{ fontSize: 48, color: 'primary.main' }} />
+      <Typography variant="h6">
+        {mode === 'review' ? 'Brak pytań do powtórki 🎉' : 'Brak nowych pytań'}
+      </Typography>
+      <Typography variant="body2" sx={{ color: 'text.secondary' }}>
+        {mode === 'review'
+          ? 'Wszystko powtórzone. Wróć jutro lub ucz się nowych pytań.'
+          : 'Brak nowych pytań w wybranych kategoriach.'}
+      </Typography>
+      <Button variant="contained" onClick={onBack} sx={{ mt: 1 }}>
+        Wróć do nauki
+      </Button>
+    </Box>
+  );
+}
+
 export default function StudySessionPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { categoryIds } = (location.state as SessionState) ?? {};
+  const state = location.state as SessionState | null;
+  const { categoryIds, mode } = state ?? {};
 
   const { preferences } = useUserPreferences();
   const {
@@ -26,6 +58,7 @@ export default function StudySessionPage() {
     currentQuestion,
     isFlipped,
     isComplete,
+    isEmpty,
     selectedOption,
     progress,
     startSession,
@@ -36,19 +69,28 @@ export default function StudySessionPage() {
   } = useStudySession({ showOptions: preferences.show_options });
 
   useEffect(() => {
-    startSession(categoryIds);
+    // Direct URL hit without navigation state — nothing to start, go home
+    if (!state) {
+      navigate('/study', { replace: true });
+      return;
+    }
+    startSession(categoryIds, mode);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const handleBack = async () => {
     await endSession();
-    navigate('/nauka');
+    navigate('/study');
   };
 
   const handleComplete = async () => {
     await endSession();
-    navigate('/nauka');
+    navigate('/study');
   };
+
+  if (isEmpty) {
+    return <EmptyState mode={mode ?? 'review'} onBack={handleBack} />;
+  }
 
   if (isComplete) {
     return <SessionComplete answered={progress.answered} onReset={handleComplete} />;

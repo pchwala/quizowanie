@@ -5,7 +5,7 @@ import ErrorBoundary from '../common/ErrorBoundary';
 
 function useShouldShowNav() {
   const { pathname } = useLocation();
-  return !pathname.startsWith('/nauka/') && !pathname.startsWith('/pytania/');
+  return !pathname.startsWith('/study/') && !pathname.startsWith('/browse/');
 }
 
 export default function AppShell() {

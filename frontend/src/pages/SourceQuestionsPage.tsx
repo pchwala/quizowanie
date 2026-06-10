@@ -199,7 +199,7 @@ export default function SourceQuestionsPage() {
     <Box sx={{ px: 2, pt: 2, pb: 3 }}>
       {/* Header */}
       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, mb: 2 }}>
-        <IconButton onClick={() => navigate('/pytania')} size="small">
+        <IconButton onClick={() => navigate('/browse')} size="small">
           <ArrowBackIcon />
         </IconButton>
         <Typography variant="h5" sx={{ fontWeight: 700 }}>{sourceLabel}</Typography>

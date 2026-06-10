@@ -71,7 +71,7 @@ export default function NaukaPage() {
   const weakCategories = stats?.weak_categories ?? [];
 
   function startSession(mode: 'new' | 'review') {
-    navigate('/nauka/session', {
+    navigate('/study/session', {
       state: {
         categoryIds: selectedCategoryIds.length ? selectedCategoryIds : undefined,
         mode,

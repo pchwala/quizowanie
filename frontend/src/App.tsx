@@ -25,11 +25,11 @@ const router = createBrowserRouter([
       </ProtectedRoute>
     ),
     children: [
-      { index: true, element: <Navigate to="/nauka" replace /> },
-      { path: '/nauka', element: <NaukaPage /> },
-      { path: '/nauka/session', element: <StudySessionPage /> },
-      { path: '/pytania', element: <PytaniaPage /> },
-      { path: '/pytania/:source', element: <SourceQuestionsPage /> },
+      { index: true, element: <Navigate to="/study" replace /> },
+      { path: '/study', element: <NaukaPage /> },
+      { path: '/study/session', element: <StudySessionPage /> },
+      { path: '/browse', element: <PytaniaPage /> },
+      { path: '/browse/:source', element: <SourceQuestionsPage /> },
       { path: '/menu', element: <MenuPage /> },
     ],
   },

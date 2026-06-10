@@ -80,7 +80,7 @@ export default function PytaniaPage() {
                 gap: 2,
                 textAlign: 'left',
               }}
-              onClick={() => navigate(`/pytania/${key}`)}
+              onClick={() => navigate(`/browse/${key}`)}
             >
               <Box
                 sx={{

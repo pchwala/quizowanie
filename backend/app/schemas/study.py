@@ -1,16 +1,19 @@
 import uuid
 from datetime import datetime
+from typing import Literal
 
 from pydantic import BaseModel, field_validator
 
 
 class StartSessionRequest(BaseModel):
-    category_id: uuid.UUID | None = None
+    category_ids: list[uuid.UUID] | None = None
+    mode: Literal["new", "review", "mixed"] = "mixed"
 
 
 class StudySessionResponse(BaseModel):
     id: uuid.UUID
-    category_id: uuid.UUID | None
+    category_ids: list[uuid.UUID] | None
+    mode: str
     started_at: datetime
     questions_answered: int
 

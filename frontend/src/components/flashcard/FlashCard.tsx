@@ -10,10 +10,11 @@ interface Props {
   onOptionSelect: (option: string) => void;
 }
 
+// Both faces share the same grid cell, so the card grows to fit the taller face
+// instead of clipping long content (no fixed height).
 const cardFace = {
-  position: 'absolute' as const,
+  gridArea: '1 / 1',
   width: '100%',
-  height: '100%',
   backfaceVisibility: 'hidden' as const,
   WebkitBackfaceVisibility: 'hidden' as const,
   display: 'flex',
@@ -31,7 +32,6 @@ export default function FlashCard({
   onOptionSelect,
 }: Props) {
   const hasOptions = showOptions && question.type !== 'question' && !!question.options?.length;
-  const cardHeight = hasOptions ? (question.type === 'multiple' ? 420 : 320) : 280;
   // When options are shown, outer click does nothing — user must pick an option
   const handleOuterClick = hasOptions && !isFlipped ? undefined : !isFlipped ? onFlip : undefined;
 
@@ -41,7 +41,7 @@ export default function FlashCard({
       sx={{
         width: '100%',
         maxWidth: 600,
-        height: cardHeight,
+        minHeight: 280,
         perspective: '1000px',
         cursor: handleOuterClick ? 'pointer' : 'default',
         mx: 'auto',
@@ -50,8 +50,8 @@ export default function FlashCard({
       <Box
         sx={{
           width: '100%',
-          height: '100%',
-          position: 'relative',
+          minHeight: 280,
+          display: 'grid',
           transformStyle: 'preserve-3d',
           transition: 'transform 0.45s ease',
           transform: isFlipped ? 'rotateY(180deg)' : 'rotateY(0deg)',

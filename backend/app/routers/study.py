@@ -42,14 +42,18 @@ async def start_session(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> StudySession:
-    if body.category_id is not None:
-        exists = (await db.execute(
-            select(Category.id).where(Category.id == body.category_id)
-        )).scalar_one_or_none()
-        if exists is None:
+    if body.category_ids:
+        found = (await db.execute(
+            select(Category.id).where(Category.id.in_(body.category_ids))
+        )).scalars().all()
+        if len(found) != len(set(body.category_ids)):
             raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Kategoria nie znaleziona")
 
-    session = StudySession(user_id=current_user.id, category_id=body.category_id)
+    session = StudySession(
+        user_id=current_user.id,
+        category_ids=body.category_ids or None,
+        mode=body.mode,
+    )
     db.add(session)
     await db.commit()
     await db.refresh(session)
@@ -66,24 +70,27 @@ async def get_next_question(
 
     def _base_filter(stmt):
         stmt = stmt.where(Question.is_active.is_(True), Question.verification_status == VerificationStatus.verified)
-        if session.category_id is not None:
-            stmt = stmt.where(Question.category_id == session.category_id)
+        if session.category_ids:
+            stmt = stmt.where(Question.category_id.in_(session.category_ids))
         return stmt
 
+    question = None
+
     # Stage 1: due SRS questions
-    due_stmt = _base_filter(
-        select(Question)
-        .join(UserQuestionProgress, (
-            (UserQuestionProgress.question_id == Question.id) &
-            (UserQuestionProgress.user_id == current_user.id)
-        ))
-        .where(UserQuestionProgress.next_review_at <= date.today())
-        .order_by(UserQuestionProgress.next_review_at.asc())
-    )
-    question = (await db.execute(due_stmt)).scalars().first()
+    if session.mode in ("review", "mixed"):
+        due_stmt = _base_filter(
+            select(Question)
+            .join(UserQuestionProgress, (
+                (UserQuestionProgress.question_id == Question.id) &
+                (UserQuestionProgress.user_id == current_user.id)
+            ))
+            .where(UserQuestionProgress.next_review_at <= date.today())
+            .order_by(UserQuestionProgress.next_review_at.asc())
+        )
+        question = (await db.execute(due_stmt)).scalars().first()
 
     # Stage 2: unseen questions
-    if question is None:
+    if question is None and session.mode in ("new", "mixed"):
         seen_ids = select(UserQuestionProgress.question_id).where(
             UserQuestionProgress.user_id == current_user.id
         )

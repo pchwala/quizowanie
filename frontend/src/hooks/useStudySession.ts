@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { type StudySession, type QuestionDetail, type AnswerQuality } from '../types/api';
+import { type StudySession, type StudyMode, type QuestionDetail, type AnswerQuality } from '../types/api';
 import * as studyApi from '../api/study';
 import { getQuestion } from '../api/questions';
 
@@ -14,6 +14,7 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
   const [currentQuestion, setCurrentQuestion] = useState<QuestionDetail | null>(null);
   const [isFlipped, setIsFlipped] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
+  const [isEmpty, setIsEmpty] = useState(false);
   const [answered, setAnswered] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
 
@@ -24,14 +25,13 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
   isFlippedRef.current = isFlipped;
   currentQuestionRef.current = currentQuestion;
 
-  const fetchNext = async (sessionId: string) => {
+  const fetchNext = async (sessionId: string): Promise<boolean> => {
     const brief = await studyApi.getNextQuestion(sessionId);
     if (brief === null) {
       setCurrentQuestion(null);
       setIsFlipped(false);
       setSelectedOption(null);
-      setIsComplete(true);
-      return;
+      return false;
     }
     const detail = await getQuestion(brief.id);
     // Batched: back face clears (isFlipped=false stops rendering answer),
@@ -39,14 +39,21 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
     setCurrentQuestion(detail);
     setIsFlipped(false);
     setSelectedOption(null);
+    return true;
   };
 
-  const startSession = async (categoryIds?: string[]) => {
-    const s = await studyApi.startSession(categoryIds);
-    setSession(s);
+  const startSession = async (categoryIds?: string[], mode: StudyMode = 'mixed') => {
+    const s = await studyApi.startSession(categoryIds, mode);
     setIsComplete(false);
+    setIsEmpty(false);
     setAnswered(0);
-    await fetchNext(s.id);
+    if (await fetchNext(s.id)) {
+      setSession(s);
+    } else {
+      // Nothing to study for this mode — discard the just-created session
+      await studyApi.endSession(s.id).catch(() => {});
+      setIsEmpty(true);
+    }
   };
 
   const flipCard = useCallback(() => setIsFlipped(true), []);
@@ -61,7 +68,9 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
     if (!s || !currentQuestion) return;
     setAnswered((n) => n + 1);
     await studyApi.submitAnswer(s.id, currentQuestion.id, quality);
-    await fetchNext(s.id);
+    if (!(await fetchNext(s.id))) {
+      setIsComplete(true);
+    }
   };
 
   const submitAnswerRef = useRef(submitAnswer);
@@ -79,6 +88,7 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
     setIsFlipped(false);
     setSelectedOption(null);
     setIsComplete(false);
+    setIsEmpty(false);
     setAnswered(0);
     queryClient.invalidateQueries({ queryKey: ['userStats'] });
   };
@@ -122,6 +132,7 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
     currentQuestion,
     isFlipped,
     isComplete,
+    isEmpty,
     selectedOption,
     progress: { answered },
     startSession,

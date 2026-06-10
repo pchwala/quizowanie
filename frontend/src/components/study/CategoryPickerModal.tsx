@@ -13,6 +13,8 @@ import {
   CircularProgress,
   IconButton,
   Box,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material';
 import CloseIcon from '@mui/icons-material/Close';
 import { useCategories } from '../../hooks/useCategories';
@@ -27,6 +29,8 @@ interface Props {
 export default function CategoryPickerModal({ open, selected, onClose, onConfirm }: Props) {
   const { data: categories = [], isLoading } = useCategories();
   const [local, setLocal] = useState<string[]>(selected);
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down('sm'));
 
   useEffect(() => {
     if (open) setLocal(selected);
@@ -45,16 +49,19 @@ export default function CategoryPickerModal({ open, selected, onClose, onConfirm
       open={open}
       onClose={onClose}
       fullWidth
+      fullScreen={fullScreen}
       maxWidth="sm"
       slotProps={{
         paper: {
-          sx: {
-            m: 0,
-            mt: 'auto',
-            borderBottomLeftRadius: 0,
-            borderBottomRightRadius: 0,
-            maxHeight: '75vh',
-          },
+          sx: fullScreen
+            ? undefined
+            : {
+                m: 0,
+                mt: 'auto',
+                borderBottomLeftRadius: 0,
+                borderBottomRightRadius: 0,
+                maxHeight: '75vh',
+              },
         },
       }}
     >

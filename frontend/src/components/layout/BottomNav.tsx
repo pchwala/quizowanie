@@ -5,8 +5,8 @@ import SettingsIcon from '@mui/icons-material/Settings';
 import { useLocation, useNavigate } from 'react-router-dom';
 
 const TABS = [
-  { label: 'Nauka', Icon: SchoolIcon, path: '/nauka' },
-  { label: 'Pytania', Icon: ListIcon, path: '/pytania' },
+  { label: 'Nauka', Icon: SchoolIcon, path: '/study' },
+  { label: 'Pytania', Icon: ListIcon, path: '/browse' },
   { label: 'Menu', Icon: SettingsIcon, path: '/menu' },
 ];
 
