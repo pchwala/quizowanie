@@ -37,7 +37,7 @@ Answer questions → identify weaknesses → schedule SRS reviews → improve re
 ```
 
 A user signs in, starts a study session (optionally scoped to a category),
-flips flashcards, self-rates recall quality (Again/Hard/Good/Easy), and the
+flips flashcards, self-rates recall quality (Źle/Dobrze/Łatwe), and the
 SM-2 algorithm schedules each question's next review. Stats surface weak
 categories and streaks.
 

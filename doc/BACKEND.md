@@ -94,7 +94,7 @@ SM-2 state; one row per (user, question). `UniqueConstraint(user_id, question_id
 | interval_days | INT | default 0 |
 | next_review_at | DATE nullable | SM-2 works in whole days |
 | last_reviewed_at | TIMESTAMPTZ nullable | |
-| last_quality | SMALLINT nullable | 0/3/4/5 |
+| last_quality | SMALLINT nullable | 0/3/5 |
 
 ### `study_sessions`
 | Column | Type | Notes |
@@ -114,7 +114,7 @@ One row per submitted answer; drives stats + weak-category aggregation.
 | id | UUID PK | |
 | session_id | UUID FK → study_sessions | |
 | question_id | UUID FK → questions | |
-| quality | SMALLINT | 0/3/4/5 |
+| quality | SMALLINT | 0/3/5 |
 | answered_at | TIMESTAMPTZ | |
 
 ### Migrations (Alembic, in order)
@@ -159,7 +159,7 @@ Both list endpoints currently filter to `is_active = true` AND
 ```
 POST /study/sessions                     # body {category_id?}; validates category; 201 → StudySessionResponse
 GET  /study/sessions/{id}/next           # next question (QuestionResponse, no answer); 404 when exhausted
-POST /study/sessions/{id}/answer         # body {question_id, quality∈{0,3,4,5}}; applies SM-2, logs answer
+POST /study/sessions/{id}/answer         # body {question_id, quality∈{0,3,5}}; applies SM-2, logs answer
                                          #   → SubmitAnswerResponse {correct_answer, explanation, mnemonic}
 POST /study/sessions/{id}/end            # 204; sets ended_at
 ```
@@ -201,31 +201,44 @@ Weak-category thresholds: `_WEAK_CATEGORY_MIN_ANSWERS = 5`, `_WEAK_CATEGORY_LIMI
 
 ## SM-2 algorithm (`services/srs.py`)
 
-Quality scale **0, 3, 4, 5** (1 and 2 skipped per SM-2 convention).
+Three-grade scale **0 (wrong) / 3 (good) / 5 (easy)** — constants `WRONG, GOOD,
+EASY`. The grading is explicit per-grade (not the parametric SM-2 EF formula) so
+that **good is a neutral pass** (easiness factor unchanged); only wrong and easy
+move the EF.
 
 ```python
 def apply_sm2(progress, quality):
-    if quality >= 3:
+    if quality == WRONG:                       # 0 — reset, review tomorrow, EF penalty
+        progress.repetitions = 0
+        interval = 1
+        progress.easiness_factor = max(1.3, progress.easiness_factor - 0.2)
+    else:                                       # GOOD (3) or EASY (5)
         if   progress.repetitions == 0: interval = 1
         elif progress.repetitions == 1: interval = 6
         else: interval = round(progress.interval_days * progress.easiness_factor)
         progress.repetitions += 1
-    else:
-        progress.repetitions = 0
-        interval = 1
+        if quality == EASY:                     # 5 — interval bonus + EF bump
+            interval = round(interval * 1.3)
+            progress.easiness_factor = progress.easiness_factor + 0.15
+        # GOOD (3): easiness factor unchanged
 
-    progress.easiness_factor = max(1.3,
-        progress.easiness_factor + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
     progress.interval_days  = interval
     progress.next_review_at = date.today() + timedelta(days=interval)
     progress.last_reviewed_at = now(utc)
     progress.last_quality = quality
 ```
 
+- **Wrong (0):** repetitions → 0, interval → 1 day, EF −0.2 (floored at 1.3).
+- **Good (3):** normal progression 1 → 6 → `round(interval * EF)`, EF unchanged.
+- **Easy (5):** same progression with a ×1.3 interval bonus, EF +0.15.
+
 EF starts 2.5, floors at 1.3. New questions get a fresh row via `make_progress`
 (`repetitions=0, ef=2.5, interval_days=0`) on first answer.
 
-Quality button mapping (frontend): Again→0, Hard→3, Good→4, Easy→5.
+Quality button mapping (frontend): Źle→0, Dobrze→3, Łatwe→5. (Switched from the
+older 4-grade scale — Again/Hard/Good/Easy 0/3/4/5 — in June 2026. No DB
+migration: `quality` is an unconstrained SMALLINT, so legacy rows containing `4`
+remain valid and only blend into historical `avg_quality`.)
 
 ## Implementation notes
 

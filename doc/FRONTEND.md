@@ -25,6 +25,7 @@ frontend/src/
     useStudySession.ts      # study-flow state machine (the meaty one)
   store/
     ui.ts                   # Zustand: sidebar/UI state
+    dailyProgress.ts        # Zustand + persist: new questions learned today (localStorage)
   components/
     common/   ProtectedRoute, LoadingScreen, ErrorBoundary
     layout/   AppShell, Sidebar, NavItem, UserAvatarSection
@@ -73,7 +74,7 @@ Each `api/*.ts` file exports plain typed async functions (no classes). Hooks in
 - `BrowseQuestion` — no answer (`id, type, text, source, difficulty, category_id, options`).
 - `QuestionDetail extends BrowseQuestion` — adds `answer, payload, explanation, mnemonic`.
 - `UserStats`, `WeakCategory`, `StudySession`, `UserPreferences { show_options }`.
-- `AnswerQuality = 0 | 3 | 4 | 5`.
+- `AnswerQuality = 0 | 3 | 5` (wrong / good / easy — 3-grade SRS).
 
 ## Study flow (the core)
 
@@ -89,7 +90,7 @@ startSession(categoryIds?)
       set currentQuestion, isFlipped=false, selectedOption=null
 
 user flips (Space / tap) or picks an option (multiple/boolean) → isFlipped=true
-user rates Again/Hard/Good/Easy:
+user rates Źle/Dobrze/Łatwe (quality 0/3/5):
   submitAnswer(quality)
     └ POST /study/sessions/:id/answer { question_id, quality }
     └ fetchNext(...)  (loops)
@@ -106,10 +107,20 @@ question's answer can render — no flash of the next answer mid-flip.
 
 **Keyboard shortcuts** (in `useStudySession` effect):
 - Before flip: `1–4` select an option (when options shown); `Space` flips otherwise.
-- After flip: `1/2/3/4` → quality `0/3/4/5`.
+- After flip: `1/2/3` → quality `0/3/5`.
 
 `showOptions` comes from user preferences (`useUserPreferences`) — controls
 whether multiple/boolean options are clickable on the card front.
+
+**Daily progress** (`store/dailyProgress.ts`) — a Zustand store with the
+`persist` middleware (localStorage key `quizowanie-daily-progress`) holding the
+local calendar day + count of **new** questions answered that day. `recordNew()`
+auto-rolls over at midnight; `useNewLearnedToday()` returns `0` for a stale day.
+`useStudySession` calls `recordNew()` once per distinct question in `new`-mode
+sessions (a per-session `Set` guards against re-answers double-counting). The
+study home shows `Nauczyłeś się dziś: n z {daily_limit}`, and `SessionProgress`
+renders a **determinate** bar of today's cumulative count against `daily_limit`
+(both new and review sessions).
 
 ## Pages
 
