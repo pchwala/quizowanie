@@ -12,10 +12,9 @@ const BUTTONS: {
   quality: AnswerQuality;
   color: 'error' | 'warning' | 'success' | 'info';
 }[] = [
-  { label: 'Jeszcze raz', key: '1', quality: 0, color: 'error' },
-  { label: 'Trudne', key: '2', quality: 3, color: 'warning' },
-  { label: 'Dobrze', key: '3', quality: 4, color: 'success' },
-  { label: 'Łatwe', key: '4', quality: 5, color: 'info' },
+  { label: 'Źle', key: '1', quality: 0, color: 'error' },
+  { label: 'Dobrze', key: '2', quality: 3, color: 'success' },
+  { label: 'Łatwe', key: '3', quality: 5, color: 'info' },
 ];
 
 export default function RatingButtons({ onRate, disabled }: Props) {

@@ -94,7 +94,7 @@ export default function NaukaPage() {
 
       {/* Spaced repetition section */}
       <Typography variant="caption" sx={{ color: 'text.secondary', mb: 1, display: 'block', px: 0.5 }}>
-        Powtarzanie z przerwami
+        Powtórki
       </Typography>
       <Paper sx={{ mb: 3 }}>
         {/* Category row */}
@@ -119,7 +119,7 @@ export default function NaukaPage() {
           <Box>
             <Typography sx={{ fontWeight: 500, lineHeight: 1.4 }}>Ucz się nowych pytań</Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              Nauczyłeś się dziś: {learnedToday} z {dailyLimit}
+              Poznane dziś: {learnedToday} z {dailyLimit}
             </Typography>
           </Box>
         </ButtonBase>

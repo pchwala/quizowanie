@@ -28,7 +28,6 @@ const SOURCES: SourceConfig[] = [
   { key: 'opentdb',            Icon: QuizIcon,         color: '#4f6ef7' },
   { key: '1z10_archive',       Icon: TvIcon,           color: '#e5c07b' },
   { key: 'milionerzy_archive', Icon: EmojiEventsIcon,  color: '#56b6c2' },
-  { key: 'pubquiz_archive',    Icon: MenuBookIcon,     color: '#98c379' },
 ];
 
 export default function PytaniaPage() {
@@ -42,7 +41,7 @@ export default function PytaniaPage() {
   return (
     <Box sx={{ px: 2, pt: 3, pb: 2 }}>
       <Typography variant="h4" sx={{ fontWeight: 700, mb: 2.5 }}>
-        Pytania
+        Baza pytań
       </Typography>
 
       <TextField

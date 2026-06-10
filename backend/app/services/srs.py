@@ -14,8 +14,16 @@ def make_progress(user_id: uuid.UUID, question_id: uuid.UUID) -> UserQuestionPro
     )
 
 
+WRONG, GOOD, EASY = 0, 3, 5
+_EASY_INTERVAL_BONUS = 1.3
+
+
 def apply_sm2(progress: UserQuestionProgress, quality: int) -> UserQuestionProgress:
-    if quality >= 3:
+    if quality == WRONG:
+        progress.repetitions = 0
+        interval = 1
+        progress.easiness_factor = max(1.3, progress.easiness_factor - 0.2)
+    else:
         if progress.repetitions == 0:
             interval = 1
         elif progress.repetitions == 1:
@@ -23,14 +31,11 @@ def apply_sm2(progress: UserQuestionProgress, quality: int) -> UserQuestionProgr
         else:
             interval = round(progress.interval_days * progress.easiness_factor)
         progress.repetitions += 1
-    else:
-        progress.repetitions = 0
-        interval = 1
+        if quality == EASY:
+            interval = round(interval * _EASY_INTERVAL_BONUS)
+            progress.easiness_factor = progress.easiness_factor + 0.15
+        # GOOD: easiness factor unchanged (neutral pass)
 
-    progress.easiness_factor = max(
-        1.3,
-        progress.easiness_factor + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02),
-    )
     progress.interval_days = interval
     progress.next_review_at = date.today() + timedelta(days=interval)
     progress.last_reviewed_at = datetime.now(timezone.utc)

@@ -111,7 +111,7 @@ export default function MenuPage() {
                   }
                 />
               }
-              label="Pokaż odpowiedzi"
+              label="Pokaż możliwe odpowiedzi"
               sx={{ mx: 0 }}
             />
             <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, ml: 0.5 }}>
@@ -120,7 +120,7 @@ export default function MenuPage() {
           </Box>
 
           <TextField
-            label="Pytania dziennie"
+            label="Dzienny cel"
             type="number"
             value={dailyLimit}
             onChange={(e) => { setDailyLimit(e.target.value); setSaved(false); }}

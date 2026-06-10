@@ -66,7 +66,7 @@ export interface UserStats {
   weak_categories: WeakCategory[];
 }
 
-export type AnswerQuality = 0 | 3 | 4 | 5;
+export type AnswerQuality = 0 | 3 | 5;
 
 export interface UserPreferences {
   show_options: boolean;

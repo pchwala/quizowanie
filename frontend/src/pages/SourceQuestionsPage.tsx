@@ -240,7 +240,7 @@ export default function SourceQuestionsPage() {
           onChange={(_, v: QuestionType | null) => updateFilter('type', v ?? '')}
           sx={{ '& .MuiToggleButton-root': { flex: 1 } }}
         >
-          <ToggleButton value="multiple">Wielokrotny</ToggleButton>
+          <ToggleButton value="multiple">Wielokrotnego wyboru</ToggleButton>
           <ToggleButton value="boolean">Prawda/Fałsz</ToggleButton>
         </ToggleButtonGroup>
       </Stack>

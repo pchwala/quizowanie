@@ -67,7 +67,11 @@ export default function FlashCard({
             justifyContent: hasOptions ? 'flex-start' : 'center',
           }}
         >
-          <Typography variant="caption" color="text.disabled" sx={{ mb: hasOptions ? 0 : 1 }}>
+          <Typography
+            variant="caption"
+            color="text.disabled"
+            sx={{ mb: hasOptions ? 0 : 1, alignSelf: 'flex-end', textAlign: 'right', width: '100%' }}
+          >
             {SOURCE_LABELS[question.source]}
           </Typography>
           <Typography variant="h5" align="center" sx={{ mb: hasOptions ? 1.5 : 0 }}>

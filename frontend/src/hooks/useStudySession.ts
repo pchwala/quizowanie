@@ -126,9 +126,9 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
         return;
       }
 
-      // Post-flip: 1-4 rate quality
+      // Post-flip: 1-3 rate quality
       if (isFlippedRef.current) {
-        const map: Record<string, AnswerQuality> = { '1': 0, '2': 3, '3': 4, '4': 5 };
+        const map: Record<string, AnswerQuality> = { '1': 0, '2': 3, '3': 5 };
         const quality = map[e.key];
         if (quality !== undefined) submitAnswerRef.current(quality);
       }
