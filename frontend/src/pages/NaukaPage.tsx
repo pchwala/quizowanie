@@ -89,7 +89,7 @@ export default function NaukaPage() {
         align="center"
         sx={{ mb: 3, fontWeight: 700, letterSpacing: -0.5, lineHeight: 1 }}
       >
-        <Box component="span" sx={{ color: 'primary.main' }}>quiz</Box>owanie
+        <Box component="span" sx={{ color: 'primary.main' }}>quiz</Box>minds
       </Typography>
 
       {/* Spaced repetition section */}
