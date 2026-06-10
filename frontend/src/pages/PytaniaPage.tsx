@@ -12,7 +12,6 @@ import SearchIcon from '@mui/icons-material/Search';
 import QuizIcon from '@mui/icons-material/Quiz';
 import TvIcon from '@mui/icons-material/Tv';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
-import MenuBookIcon from '@mui/icons-material/MenuBook';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import { useNavigate } from 'react-router-dom';
 import type { QuestionSource } from '../types/api';
