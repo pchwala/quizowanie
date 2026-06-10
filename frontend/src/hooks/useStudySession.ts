@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { type StudySession, type StudyMode, type QuestionDetail, type AnswerQuality } from '../types/api';
 import * as studyApi from '../api/study';
 import { getQuestion } from '../api/questions';
+import { useDailyProgressStore } from '../store/dailyProgress';
 
 interface UseStudySessionOptions {
   showOptions?: boolean;
@@ -18,6 +19,8 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
   const [answered, setAnswered] = useState(0);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
 
+  const modeRef = useRef<StudyMode>('mixed');
+  const countedIdsRef = useRef<Set<string>>(new Set());
   const sessionRef = useRef(session);
   const isFlippedRef = useRef(isFlipped);
   const currentQuestionRef = useRef(currentQuestion);
@@ -44,6 +47,8 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
 
   const startSession = async (categoryIds?: string[], mode: StudyMode = 'mixed') => {
     const s = await studyApi.startSession(categoryIds, mode);
+    modeRef.current = mode;
+    countedIdsRef.current = new Set();
     setIsComplete(false);
     setIsEmpty(false);
     setAnswered(0);
@@ -68,6 +73,11 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
     if (!s || !currentQuestion) return;
     setAnswered((n) => n + 1);
     await studyApi.submitAnswer(s.id, currentQuestion.id, quality);
+    // Count distinct new questions toward the local daily goal.
+    if (modeRef.current === 'new' && !countedIdsRef.current.has(currentQuestion.id)) {
+      countedIdsRef.current.add(currentQuestion.id);
+      useDailyProgressStore.getState().recordNew();
+    }
     if (!(await fetchNext(s.id))) {
       setIsComplete(true);
     }

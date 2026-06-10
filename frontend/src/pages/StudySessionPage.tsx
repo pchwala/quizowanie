@@ -5,6 +5,7 @@ import CelebrationIcon from '@mui/icons-material/Celebration';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useStudySession } from '../hooks/useStudySession';
 import { useUserPreferences } from '../hooks/useUserPreferences';
+import { useNewLearnedToday } from '../store/dailyProgress';
 import SessionComplete from '../components/study/SessionComplete';
 import FlashCard from '../components/flashcard/FlashCard';
 import RatingButtons from '../components/flashcard/RatingButtons';
@@ -53,6 +54,7 @@ export default function StudySessionPage() {
   const { categoryIds, mode } = state ?? {};
 
   const { preferences } = useUserPreferences();
+  const learnedToday = useNewLearnedToday();
   const {
     session,
     currentQuestion,
@@ -106,7 +108,7 @@ export default function StudySessionPage() {
         <IconButton onClick={handleBack} size="small" sx={{ mr: 1 }}>
           <ArrowBackIcon />
         </IconButton>
-        <SessionProgress answered={progress.answered} />
+        <SessionProgress count={learnedToday} goal={preferences.daily_limit ?? 15} />
       </Box>
       <FlashCard
         question={currentQuestion}

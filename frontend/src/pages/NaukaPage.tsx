@@ -12,6 +12,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import { useNavigate } from 'react-router-dom';
 import { useUserStats } from '../hooks/useUserStats';
 import { useUserPreferences } from '../hooks/useUserPreferences';
+import { useNewLearnedToday } from '../store/dailyProgress';
 import WeakCategoriesChart from '../components/stats/WeakCategoriesChart';
 import CategoryPickerModal from '../components/study/CategoryPickerModal';
 
@@ -68,6 +69,7 @@ export default function NaukaPage() {
 
   const dueCount = stats?.due_today ?? 0;
   const dailyLimit = preferences.daily_limit ?? 15;
+  const learnedToday = useNewLearnedToday();
   const weakCategories = stats?.weak_categories ?? [];
 
   function startSession(mode: 'new' | 'review') {
@@ -117,7 +119,7 @@ export default function NaukaPage() {
           <Box>
             <Typography sx={{ fontWeight: 500, lineHeight: 1.4 }}>Ucz się nowych pytań</Typography>
             <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-              Nauczyłeś się dziś: 0 z {dailyLimit}
+              Nauczyłeś się dziś: {learnedToday} z {dailyLimit}
             </Typography>
           </Box>
         </ButtonBase>

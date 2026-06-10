@@ -1,16 +1,18 @@
 import { Box, LinearProgress, Typography } from '@mui/material';
 
 interface Props {
-  answered: number;
+  count: number;
+  goal: number;
 }
 
-export default function SessionProgress({ answered }: Props) {
+export default function SessionProgress({ count, goal }: Props) {
+  const value = goal > 0 ? Math.min((count / goal) * 100, 100) : 0;
   return (
     <Box sx={{ mb: 3 }}>
       <Typography variant="body2" color="text.secondary" align="right" sx={{ mb: 0.5 }}>
-        {answered} {answered === 1 ? 'odpowiedź' : 'odpowiedzi'}
+        {count} / {goal} odpowiedzi
       </Typography>
-      <LinearProgress variant="indeterminate" sx={{ borderRadius: 1 }} />
+      <LinearProgress variant="determinate" value={value} sx={{ borderRadius: 1 }} />
     </Box>
   );
 }
