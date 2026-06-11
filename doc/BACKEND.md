@@ -19,18 +19,22 @@ backend/
       progress.py      # UserQuestionProgress (SM-2 state)
       session.py       # StudySession, StudyAnswer
     schemas/           # Pydantic request/response models
-      user.py, category.py, question.py, study.py, stats.py
+      user.py, category.py, question.py, study.py, stats.py, bundle.py
     routers/
       auth.py          # POST /auth/me
+      bundles.py       # GET /bundles/latest (PUBLIC — no auth)
       categories.py    # GET /categories
       questions.py     # GET /questions, /browse/questions, /questions/{id}
-      study.py         # POST/GET /study/sessions/*
+      study.py         # POST/GET /study/sessions/* + POST /study/sync
       users.py         # GET /users/me/stats, GET/PATCH /users/me/preferences
     services/
       srs.py           # apply_sm2 + make_progress
       stats.py         # parallel stat aggregation queries
     seeds/             # data pipeline — see DATA_PIPELINE.md
-  alembic/             # migrations (4 revisions)
+  scripts/
+    verify_sync.py     # in-process e2e check of /bundles/latest + /study/sync
+                       # (auth overridden, self-cleaning; promote to pytest later)
+  alembic/             # migrations (6 revisions)
   Dockerfile
   requirements.txt
 ```
@@ -116,22 +120,37 @@ One row per submitted answer; drives stats + weak-category aggregation.
 | question_id | UUID FK → questions | |
 | quality | SMALLINT | 0/3/5 |
 | answered_at | TIMESTAMPTZ | |
+| client_event_id | UUID UNIQUE nullable | device event-log UUID; offline-sync idempotency key (NULL for live-endpoint answers) |
 
 ### Migrations (Alembic, in order)
 1. `897c2a87c2cd` — initial schema
 2. `b2f1a7c4d3e9` — add question `type` + `payload`
 3. `c3d2e1f0a9b8` — add `verification_status`
 4. `d4e3f2a1b0c7` — add `preferences` to users
+5. `e5f4a3b2c1d0` — add `mode` + `category_ids` to study_sessions
+6. `f6a5b4c3d2e1` — add `client_event_id` to study_answers (offline sync)
 
 ## API endpoints
 
-All routes except `GET /health` require a valid Firebase bearer token.
+All routes except `GET /health` and `GET /bundles/latest` require a valid
+Firebase bearer token (anonymous or linked).
 
 ### Health & Auth
 ```
 GET  /health          # public, Cloud Run probe → {"status":"ok"}
 POST /auth/me         # verify token, upsert user, return UserResponse
 ```
+
+### Bundles (PUBLIC — offline question pool)
+```
+GET  /bundles/latest  # no auth — anonymous clients download the pool on first run
+```
+Returns `{ version, question_count, questions[], categories[], deleted_ids[] }`.
+`questions` are full rows (answer + payload included — the client grades
+offline and builds options locally); active+verified only. `deleted_ids` are
+tombstones (inactive/rejected) the client deletes locally. `version` is
+`"{count}-{max_created_at}"` — good enough for the full-bundle MVP; delta
+updates are post-launch.
 
 ### Categories
 ```
@@ -176,6 +195,32 @@ The endpoint is **idempotent** per session: re-fetching before an answer returns
 the same question (handles reconnects). `submit_answer` rejects answers on an
 already-ended session (`400`).
 
+> The frontend no longer calls the per-answer `/study/sessions/*` endpoints —
+> the study engine runs on-device. They remain valid (and define the reference
+> behavior the local engine mirrors).
+
+### Offline sync
+```
+POST /study/sync      # bulk answer-event ingest from the device event log
+```
+Body `{ events: [{ event_id, question_id, quality, answered_at, mode }] }` →
+`{ synced, progress: [ProgressRow...] }` (all canonical rows for the user).
+
+Semantics (`sync_answers` in `routers/study.py`):
+1. **Idempotent union** — events deduped against `study_answers.client_event_id`
+   (and within the batch); re-posting a batch is a no-op (`synced: 0`).
+2. New events sorted by `answered_at`; one **synthetic StudySession** per batch
+   keeps the stats joins unchanged.
+3. SM-2 **replayed with `reviewed_at=answered_at`** (intervals anchor to when
+   the user actually reviewed, not when the batch arrived).
+4. **LWW guard** — events older than the progress row's `last_reviewed_at` are
+   logged but do not mutate progress (a stale device can't regress another
+   device's schedule).
+5. Unknown/inactive `question_id`s are skipped silently.
+
+Naive client timestamps are treated as UTC (`_as_utc`). Verified end-to-end by
+`scripts/verify_sync.py`.
+
 ### Users
 ```
 GET   /users/me/stats         # UserStatsResponse
@@ -205,6 +250,15 @@ Three-grade scale **0 (wrong) / 3 (good) / 5 (easy)** — constants `WRONG, GOOD
 EASY`. The grading is explicit per-grade (not the parametric SM-2 EF formula) so
 that **good is a neutral pass** (easiness factor unchanged); only wrong and easy
 move the EF.
+
+> **Parity invariant**: `frontend/src/local/srs.ts` is a faithful port (incl.
+> Python round-half-even) and must stay identical — the offline client and the
+> server replay have to produce the same schedules. Guarded by the frontend
+> test `src/local/srs.test.ts`; regenerate its fixture from this module when
+> either side changes.
+>
+> `apply_sm2(progress, quality, reviewed_at=None)` — `reviewed_at` defaults to
+> now; the sync replay passes the original answer timestamp.
 
 ```python
 def apply_sm2(progress, quality):

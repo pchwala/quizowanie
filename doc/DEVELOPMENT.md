@@ -42,13 +42,35 @@ cd frontend
 npm install
 npm run dev        # Vite dev server on http://localhost:5173
 npm run build      # tsc -b && vite build  → dist/
-npm run lint       # eslint
+npm run lint       # eslint (7 pre-existing react-hooks v7 errors — see STATUS.md)
+npm run test       # vitest — includes the SM-2 parity suite (src/local/srs.test.ts)
 npm run preview    # preview the production build
 ```
 
 ### Frontend env
 `VITE_API_URL` — backend base URL (defaults to `http://localhost:8000` if unset).
 Firebase web config lives in `src/firebase.ts`.
+
+### Local-first notes
+- **First run needs the backend up** (or network to it): the app downloads the
+  question pool from the public `GET /bundles/latest` and caches it in SQLite.
+  After that it runs fully offline.
+- On web, SQLite is `jeep-sqlite` (wasm) persisted to IndexedDB; the wasm
+  binary lives at `public/assets/sql-wasm.wasm` (copied from
+  `node_modules/sql.js/dist/` — re-copy after a sql.js major bump).
+- To reset local state while testing: clear site data (IndexedDB + localStorage).
+- **SM-2 parity**: never change `frontend/src/local/srs.ts` or
+  `backend/app/services/srs.py` alone — update both and regenerate the fixture
+  in `src/local/srs.test.ts`.
+
+### Verifying sync end-to-end
+
+```bash
+cd backend
+PYTHONPATH=. .venv/bin/python scripts/verify_sync.py
+# checks /bundles/latest + /study/sync idempotency against DATABASE_URL,
+# bypassing Firebase (auth dependency overridden); cleans up after itself
+```
 
 ## Migrations (Alembic)
 
@@ -59,8 +81,8 @@ alembic upgrade head                                    # apply
 alembic downgrade -1                                    # roll back one
 ```
 
-Current head: `d4e3f2a1b0c7` (add preferences to users). Never mutate schema in
-seed scripts — migrations only.
+Current head: `f6a5b4c3d2e1` (add client_event_id to study_answers). Never
+mutate schema in seed scripts — migrations only.
 
 ## Seeding the question bank
 
@@ -85,6 +107,6 @@ The AI stages (`translate_questions.py`, `triage_questions.py`) need
 
 ## Git
 
-- Current working branch: `front-refactor`. Main branch: `main`.
+- Current working branch: `feature`. Main branch: `main`.
 - Commit/push only when asked.
 </content>

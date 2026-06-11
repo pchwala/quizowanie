@@ -30,17 +30,23 @@ server became a sync backend.
   longer calls them; unused `api/*` clients were removed (only `client.ts`
   stays, for bundles + sync).
 
+**Verified on 2026-06-11** (Neon is a disposable test DB for now):
+- Alembic migration `f6a5b4c3d2e1` applied (`alembic upgrade head`).
+- `backend/scripts/verify_sync.py` (in-process, auth overridden, self-cleaning)
+  passed end-to-end: `GET /bundles/latest` returns 4493 questions /
+  26 categories; first sync ingests, duplicate batch is a no-op with progress
+  unchanged; exactly one `study_answers` row per event; SM-2 replay state
+  correct.
+
 **Remaining for this refactor:**
-1. Run the Alembic migration `f6a5b4c3d2e1` (adds
-   `study_answers.client_event_id`) against Neon — not yet applied.
-2. `POST /study/sync` idempotency integration test — needs a disposable
-   Postgres (no pytest infra yet; do NOT test against prod Neon).
-3. `npx cap add android` + the mobile UI polish track
+1. `npx cap add android` + the mobile UI polish track
    (`dev/MOBILE_CONSIDERATIONS.md` §6+). `capacitor.config.ts`, `base: './'`,
    and the SQLite layer are already in place.
-4. Lint carries 7 pre-existing `react-hooks` v7 errors (`useStudySession` refs
+2. Lint carries 7 pre-existing `react-hooks` v7 errors (`useStudySession` refs
    pattern, `CategoryPickerModal`, `AuthContext` fast-refresh) — untouched by
    this refactor.
+3. Promote `scripts/verify_sync.py` into a proper pytest suite once test infra
+   lands (point it at a non-shared Postgres before Neon becomes real prod).
 
 ## Backend — 100% of MVP scope
 
@@ -60,6 +66,8 @@ All endpoints implemented, wired up, no stubs.
 | `POST /study/sessions/{id}/end` | Done — 204 |
 | `GET /users/me/stats` | Done — due/studied/streak/total/weak |
 | `GET/PATCH /users/me/preferences` | Done — JSONB preferences (`show_options`) |
+| `GET /bundles/latest` | Done — PUBLIC; offline question pool + tombstones |
+| `POST /study/sync` | Done — idempotent bulk event ingest + SM-2 replay (LWW) |
 
 Data: `data/final_questions.json` holds 4500 compiled questions ready to load.
 
@@ -67,8 +75,10 @@ Data: `data/final_questions.json` holds 4500 compiled questions ready to load.
 
 | Feature | Status |
 |---|---|
-| Firebase auth (email/password + Google) | Done |
-| Protected routes | Done |
+| Anonymous-first auth (lazy anon uid; email/Google account **linking**) | Done |
+| Local SQLite store + offline study engine (`src/local/`) | Done |
+| Bundle bootstrap gate + background refresh | Done |
+| Sync engine (event push + LWW pull) + toast | Done |
 | AppShell + responsive sidebar | Done |
 | Study flow (Setup → FlashCard → Rating → Complete) | Done |
 | Clickable options on flashcard for multiple/boolean | Done |
@@ -85,11 +95,13 @@ Data: `data/final_questions.json` holds 4500 compiled questions ready to load.
 
 ## Remaining work
 
-1. **Testing** — no automated test suite yet (no `tests/` dir, no pytest/vitest
-   config present). Primary remaining effort. Cover at minimum: SM-2
-   (`services/srs.py`), next-question selection staging, stats aggregation
-   (streak + weak categories), and the study-flow hook.
-2. **Minor bug fixes** — see below.
+1. **Testing** — vitest now exists with the SM-2 parity suite
+   (`frontend/src/local/srs.test.ts`); `backend/scripts/verify_sync.py` covers
+   sync e2e. Still missing: next-question staging, local stats aggregation
+   (streak + weak categories), the study-flow hook, and a real pytest suite.
+2. **Real-device/manual testing** of the local-first flows (first run, offline
+   study, registration sync, multi-device merge).
+3. **Minor bug fixes** — see below.
 
 ## Known issues (`dev/ISSUES.md`)
 

@@ -8,7 +8,10 @@ competitive quiz-show players — *1 z 10*, *Milionerzy*, *PubQuiz*. Think
 Duolingo/Anki for Polish trivia. Polish UI, Polish audience only.
 
 The MVP (web app) is **functionally complete**: backend at 100% of MVP scope,
-frontend essentially done. Remaining work is testing and minor bug fixes.
+frontend essentially done. As of 2026-06-11 the app is **local-first**: it works
+anonymously and offline against on-device SQLite, with optional account
+registration + server sync (pre-Capacitor groundwork). Remaining work is
+testing and the Android (Capacitor) track.
 
 ---
 
@@ -36,19 +39,22 @@ The original brainstorming/planning notes live in [`../dev/`](../dev/). These
 Answer questions → identify weaknesses → schedule SRS reviews → improve retention
 ```
 
-A user signs in, starts a study session (optionally scoped to a category),
-flips flashcards, self-rates recall quality (Źle/Dobrze/Łatwe), and the
-SM-2 algorithm schedules each question's next review. Stats surface weak
-categories and streaks.
+A user opens the app (no account needed), starts a study session (optionally
+scoped to categories), flips flashcards, self-rates recall quality
+(Źle/Dobrze/Łatwe), and the SM-2 algorithm schedules each question's next
+review — all on-device, offline-capable. Stats surface weak categories and
+streaks. Registering (optional) syncs progress across devices.
 
 ## Stack at a glance
 
 | Layer | Choice |
 |---|---|
 | Frontend | React 19 + TypeScript (strict) + MUI v9 + TanStack Query v5 + Zustand |
-| Auth | Firebase Auth (email/password + Google) |
-| API | FastAPI + async SQLAlchemy (asyncpg) |
-| DB | Neon Postgres |
+| Local store | Capacitor SQLite (`jeep-sqlite` wasm on web) — source of truth on device |
+| Mobile shell | Capacitor (Android; `android/` scaffold pending) |
+| Auth | Firebase Auth — anonymous-first; email/password + Google linking |
+| API | FastAPI + async SQLAlchemy (asyncpg) — question bundle + sync backend |
+| DB | Neon Postgres (currently a disposable test instance) |
 | Hosting (planned) | Firebase Hosting (web) + Cloud Run (API) |
 | Migrations | Alembic |
 

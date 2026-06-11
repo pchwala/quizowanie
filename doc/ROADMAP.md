@@ -42,15 +42,17 @@ JSON format (`dev/DATA_SOURCING.md`).
 Android is the primary target going forward; the web app is maintained in
 parallel from the same codebase. Full plan in `dev/MOBILE_CONSIDERATIONS.md`.
 
-Highlights:
-- **Capacitor** wrapping the Vite build; `base: './'` required (WebView loads
-  from `file://`). `android/` dir in repo root.
-- **Local SQLite** (`@capacitor-community/sqlite`) mirrors read-only questions +
-  a local SRS shadow; user progress stays server-authoritative.
-- **Offline study** with `pending_answers`, synced via a new bulk
-  `POST /study/sync` endpoint (server wins conflicts).
-- **Question bundle versioning** — `GET /bundles/latest`, tombstones for deletes,
-  `min_required_version` force-refresh, delta updates post-launch.
+Highlights (✓ = shipped in the 2026-06-11 local-first refactor — note it went
+**further** than this plan: the app is local-first for everyone, anonymous use
+included, and conflicts resolve by event-log union + LWW, not server-wins):
+- ✓ **Capacitor config + `base: './'`** (`frontend/capacitor.config.ts`);
+  `npx cap add android` still pending.
+- ✓ **Local SQLite** (`@capacitor-community/sqlite`, `jeep-sqlite` on web) —
+  now the **source of truth**, not a shadow; the study engine runs on-device.
+- ✓ **Offline study** with an `answer_events` log synced via `POST /study/sync`
+  (idempotent union by client UUID; per-question LWW by `last_reviewed_at`).
+- ✓ **Question bundle** — `GET /bundles/latest` (public) with tombstones;
+  `min_required_version` force-refresh + delta updates remain post-launch.
 - **Push notifications** — FCM + `@capacitor/push-notifications`; new `fcm_token`
   column + crons (daily reminder, streak-at-risk, new questions, weekly summary).
 - **Mobile UI** — bottom nav on native, ≥48px touch targets, haptics, swipe
@@ -58,9 +60,9 @@ Highlights:
 - **Build/CI** — keystore signing (never commit), Play Store internal→prod track,
   Firebase App Distribution for beta, GitHub Actions (web + Android jobs).
 
-Priority order (from the plan): Capacitor build → `base:'./'` → local SQLite +
-bundle download → offline sync → `/study/sync` → mobile UI polish → push →
-Play Store/CI → delta updates → deep links/analytics/Sentry.
+Priority order (remaining): `npx cap add android` + build compiles → mobile UI
+polish (bottom nav exists; haptics, status bar, safe areas, back button) →
+push → Play Store/CI → delta updates → deep links/analytics/Sentry.
 
 ## 4. Monetization — premium AI generation
 

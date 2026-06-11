@@ -1,148 +1,158 @@
 # Frontend Reference
 
-React 19 + TypeScript (strict) SPA built with Vite. MUI v9, TanStack Query v5,
-Zustand, Firebase Auth, Axios. Dark theme, Polish UI.
+React 19 + TypeScript (strict) SPA built with Vite, wrapped by Capacitor for
+Android. MUI v9, TanStack Query v5, Zustand, Firebase Auth, Axios, Capacitor
+SQLite. Dark theme, Polish UI. **Local-first**: all reads/writes go to
+on-device SQLite; the API is only used for the question bundle and sync.
 
 ## Project layout
 
 ```
-frontend/src/
-  main.tsx                  # React root
-  App.tsx                   # QueryClient + AuthProvider + ThemeProvider + Router
-  theme.ts                  # MUI theme — single source of truth (dark, Inter)
-  firebase.ts               # Firebase app init + auth export
-  index.css
-  contexts/
-    AuthContext.tsx         # useAuth() → { user, loading } via onAuthStateChanged
-  api/
-    client.ts               # Axios instance + Bearer-token request interceptor
-    categories.ts | questions.ts | study.ts | users.ts
-  hooks/
-    useCategories.ts        # TanStack Query wrappers
-    useQuestions.ts         # incl. useBrowseQuestions
-    useUserStats.ts
-    useUserPreferences.ts
-    useStudySession.ts      # study-flow state machine (the meaty one)
-  store/
-    ui.ts                   # Zustand: sidebar/UI state
-    dailyProgress.ts        # Zustand + persist: new questions learned today (localStorage)
-  components/
-    common/   ProtectedRoute, LoadingScreen, ErrorBoundary
-    layout/   AppShell, Sidebar, NavItem, UserAvatarSection
-    flashcard/ FlashCard, RatingButtons, SessionProgress
-    study/    SessionSetup, SessionComplete
-    stats/    StatCard, WeakCategoriesChart
-  pages/
-    LoginPage, StudyPage, BrowsePage, StatsPage, SettingsPage
-  types/
-    api.ts                  # all API response shapes (single source of truth)
+frontend/
+  capacitor.config.ts       # Capacitor app id/name; webDir dist
+  vite.config.ts            # base './' (WebView file:// loads), jeep-sqlite excluded from prebundle
+  public/assets/sql-wasm.wasm  # jeep-sqlite web fallback (copied from sql.js)
+  src/
+    main.tsx                # React root + jeep-sqlite element registration (web only)
+    App.tsx                 # QueryClient + AuthProvider + ThemeProvider + Router
+    theme.ts                # MUI theme — single source of truth (dark, Inter)
+    firebase.ts             # Firebase app init + auth export
+    contexts/
+      AuthContext.tsx       # useAuth() → { user, loading, isAnonymous }
+                            #   lazy signInAnonymously() when online; installs sync triggers
+    api/
+      client.ts             # Axios instance + Bearer-token interceptor (bundle + sync only)
+    local/                  # ── the on-device data layer (source of truth) ──
+      db.ts                 # platform-aware SQLite connection + schema + query/run/meta helpers
+      srs.ts                # SM-2 port — MUST stay identical to backend services/srs.py
+      srs.test.ts           # parity test against a Python-generated fixture (npm test)
+      nextQuestion.ts       # due-SRS → unseen staging (port of routers/study.py)
+      options.ts            # shuffled options builder (port of _build_options)
+      questions.ts          # row mapper + local browse/category queries
+      stats.ts              # due/studied/streak/weak-categories over local tables
+      engine.ts             # session orchestration: start/getNext/submitAnswer
+      bundle.ts             # first-run fetch + background refresh of /bundles/latest
+      identity.ts           # offline device_id + local preferences (meta table)
+    sync/
+      syncEngine.ts         # push answer_events → POST /study/sync; LWW pull-reconcile
+    hooks/
+      useStudySession.ts    # study-flow state machine → local/engine
+      useCategories.ts | useQuestions.ts | useUserStats.ts | useUserPreferences.ts
+                            # TanStack Query wrappers over local/*
+    store/
+      ui.ts                 # Zustand: sidebar/UI state
+      dailyProgress.ts      # Zustand + persist: new questions learned today (localStorage)
+    components/
+      common/   ProtectedRoute (bundle bootstrap gate), RegisterCta, SyncToast,
+                LoadingScreen, ErrorBoundary
+      layout/   AppShell (+ SyncToast), BottomNav, ...
+      flashcard/ FlashCard, RatingButtons, SessionProgress
+      study/    SessionSetup, CategoryPickerModal, SessionComplete
+      stats/    StatCard, WeakCategoriesChart
+    pages/
+      LoginPage (register/link screen), NaukaPage, StudySessionPage,
+      PytaniaPage, SourceQuestionsPage, MenuPage
+    types/
+      api.ts                # all shared data shapes (single source of truth)
 ```
 
-## Routing & auth (App.tsx)
+## Routing & bootstrap (App.tsx)
 
 ```
-/login            → LoginPage (public)
-/  (protected)    → AppShell with <Outlet>:
+/login            → LoginPage (register/link — reached from CTA or Menu)
+/  (gated)        → AppShell with <Outlet>:
    index          → redirect to /study
-   /study         → StudyPage
-   /browse        → BrowsePage
-   /stats         → StatsPage
-   /settings      → SettingsPage
+   /study         → NaukaPage          /study/session → StudySessionPage
+   /browse        → PytaniaPage        /browse/:source → SourceQuestionsPage
+   /menu          → MenuPage
 ```
 
-`ProtectedRoute` wraps `AppShell` and redirects to `/login` when `useAuth()`
-returns no user. The QueryClient sets `refetchOnWindowFocus: false` (deliberate —
-see [STATUS.md](STATUS.md), fixed bug #1).
+**There is no login wall.** `ProtectedRoute` is a bundle-bootstrap gate: on
+first run it blocks on the `/bundles/latest` download (spinner → offline-retry
+screen if no network); on later runs it renders immediately and refreshes the
+bundle in the background (invalidating queries if the pool moved).
 
-`useAuth()` from `contexts/AuthContext.tsx` returns `{ user: FirebaseUser | null,
-loading: boolean }`.
+`useAuth()` returns `{ user, loading, isAnonymous }`. `AuthContext` signs in
+anonymously (lazily, retried on reconnect) — study never waits for it; the
+identity only enables sync.
 
-## API client pattern
+## Local store
 
-`api/client.ts` is an Axios instance with `baseURL` from `VITE_API_URL`
-(default `http://localhost:8000`). A request interceptor attaches
-`Authorization: Bearer <getIdToken()>` when a Firebase user is present.
+Tables in `local/db.ts` (SQLite): `questions`, `categories`, `progress`
+(SM-2 state, PK question_id), `answer_events` (append-only log:
+`event_id` UUID PK, quality, answered_at, mode, `synced` flag), `meta`
+(key/value: device_id, bundle_version, last_sync_at, preferences JSON).
 
-Each `api/*.ts` file exports plain typed async functions (no classes). Hooks in
-`hooks/` wrap them with `useQuery`/`useMutation`.
-
-## Types (`types/api.ts`)
-
-- `QuestionSource` = `'1z10_archive' | 'milionerzy_archive' | 'pubquiz_archive' | 'opentdb'`,
-  with `SOURCE_LABELS` for display.
-- `QuestionType` = `'multiple' | 'boolean' | 'question'`.
-- `BrowseQuestion` — no answer (`id, type, text, source, difficulty, category_id, options`).
-- `QuestionDetail extends BrowseQuestion` — adds `answer, payload, explanation, mnemonic`.
-- `UserStats`, `WeakCategory`, `StudySession`, `UserPreferences { show_options }`.
-- `AnswerQuality = 0 | 3 | 5` (wrong / good / easy — 3-grade SRS).
+On web the store persists to IndexedDB via `jeep-sqlite` (autoSave +
+explicit `persistWebStore()` after writes). Native Android uses the real
+plugin — same code path through `getDb()`.
 
 ## Study flow (the core)
 
-`useStudySession.ts` is a hand-rolled state machine (not just a query wrapper).
-Two API calls per question because `/next` withholds the answer:
+`useStudySession.ts` drives the same state machine as before, but against
+`local/engine.ts` — sessions are **in-memory**; the durable record is the
+`progress` upsert + `answer_events` append per answer:
 
 ```
-startSession(categoryIds?)
-  └ POST /study/sessions → session
-  └ fetchNext(session.id):
-      GET /study/sessions/:id/next  → brief (BrowseQuestion, no answer) OR null→complete
-      GET /questions/:id            → QuestionDetail (answer + explanation + mnemonic)
-      set currentQuestion, isFlipped=false, selectedOption=null
+startSession(categoryIds?, mode)
+  └ startLocalSession() (no API)
+  └ fetchNext: getNextForSession() → full QuestionDetail from SQLite
+      (the old /next + detail two-call pattern collapsed — answer is local)
 
-user flips (Space / tap) or picks an option (multiple/boolean) → isFlipped=true
+user flips (Space / tap) or picks an option → isFlipped=true
 user rates Źle/Dobrze/Łatwe (quality 0/3/5):
-  submitAnswer(quality)
-    └ POST /study/sessions/:id/answer { question_id, quality }
-    └ fetchNext(...)  (loops)
-endSession → POST /study/sessions/:id/end, reset, invalidate ['userStats']
+  submitLocalAnswer → applySm2 + progress upsert + answer_events append
+  fetchNext (loops; null → complete)
+endSession → reset, invalidate ['userStats'], void syncNow()
 ```
 
-**Why two calls** — `/next` is the question-reveal endpoint and intentionally
-omits the answer; the detail fetch gets it. The `POST .../answer` response is
-ignored (answer already known from the detail fetch).
+**Flip-flash fix** (unchanged): `setCurrentQuestion` + `setIsFlipped(false)`
+are batched in `fetchNext`.
 
-**Flip-flash fix**: in `fetchNext`, `setCurrentQuestion(detail)` and
-`setIsFlipped(false)` are batched so the back face clears before the new
-question's answer can render — no flash of the next answer mid-flip.
+**Keyboard shortcuts** (unchanged): pre-flip `1–4` select option / `Space`
+flips; post-flip `1/2/3` → quality `0/3/5`.
 
-**Keyboard shortcuts** (in `useStudySession` effect):
-- Before flip: `1–4` select an option (when options shown); `Space` flips otherwise.
-- After flip: `1/2/3` → quality `0/3/5`.
+**Daily progress** (`store/dailyProgress.ts`, unchanged): localStorage
+day-counter for `new`-mode questions; powers `Poznane dziś: n z {daily_limit}`.
 
-`showOptions` comes from user preferences (`useUserPreferences`) — controls
-whether multiple/boolean options are clickable on the card front.
+## Sync
 
-**Daily progress** (`store/dailyProgress.ts`) — a Zustand store with the
-`persist` middleware (localStorage key `quizowanie-daily-progress`) holding the
-local calendar day + count of **new** questions answered that day. `recordNew()`
-auto-rolls over at midnight; `useNewLearnedToday()` returns `0` for a stale day.
-`useStudySession` calls `recordNew()` once per distinct question in `new`-mode
-sessions (a per-session `Set` guards against re-answers double-counting). The
-study home shows `Nauczyłeś się dziś: n z {daily_limit}`, and `SessionProgress`
-renders a **determinate** bar of today's cumulative count against `daily_limit`
-(both new and review sessions).
+`sync/syncEngine.ts` — `syncNow()` pushes unsynced `answer_events` to
+`POST /study/sync`, marks them synced, then reconciles the returned canonical
+progress **last-write-wins by `last_reviewed_at`** (only newer server rows
+overwrite local). Triggers: reconnect (`online` + `@capacitor/network`), tab
+refocus, session end, identity attach, registration. Anonymous users skip the
+call when nothing to push. `SyncToast` (in `AppShell`) listens for
+`SYNC_DONE_EVENT` and shows „Zsynchronizowano X odpowiedzi”.
+
+## Account UX
+
+- **RegisterCta** — dismissible banner on NaukaPage for anonymous users
+  („Zarejestruj się, aby zapisać postępy…”), dismissal in localStorage.
+- **MenuPage** — guest card („Gość / Postępy zapisane tylko na tym urządzeniu”)
+  + „Załóż konto lub zaloguj się” entry; display-name field and sign-out only
+  for registered users. Sign-out returns to `/` (a fresh anon identity attaches).
+- **LoginPage** — defaults to register mode. Anonymous + register →
+  `linkWithCredential`/`linkWithPopup` (uid preserved, server data carries
+  over); Google account already in use → fallback `signInWithPopup` and the
+  event-log union merges on sync. Finishes with `syncNow()`.
 
 ## Pages
 
-- **LoginPage** — Firebase email/password + Google sign-in.
-- **StudyPage** — thin; renders `SessionSetup` or the active `FlashCard` loop +
-  `SessionProgress` + `RatingButtons`, ending in `SessionComplete`.
-- **BrowsePage** — filterable, **paginated** question list (read-only).
-  `PAGE_SIZE = 50`; filters: category, type, source, difficulty band
-  (Łatwe 1–3 / Średnie 4–6 / Trudne 7–10). Uses `useBrowseQuestions`
-  (`GET /browse/questions`). See [STATUS.md](STATUS.md) for the page-number
-  pagination follow-up.
-- **StatsPage** — four `StatCard`s (due today, total studied, streak, total
-  questions) + `WeakCategoriesChart` (`@mui/x-charts` BarChart, empty-state
-  message when no data).
-- **SettingsPage** — editable Firebase display name + sign-out; `show_options`
-  preference toggle.
+- **NaukaPage** — study home: RegisterCta, category picker, new/review entry
+  rows, streak/total stats, weak-categories chart. All from local store.
+- **StudySessionPage** — the active flashcard loop.
+- **PytaniaPage / SourceQuestionsPage** — browse, filtered + paginated via
+  `browseLocalQuestions` (no network).
+- **MenuPage** — account card, settings (`show_options`, `daily_limit` — stored
+  in local `meta`), register/sign-out.
 
 ## Conventions
 
-- **Pages are thin** — compose hooks + components, no direct API calls.
-- **Business logic lives in hooks**, not pages (e.g. `useStudySession`).
+- **Pages are thin** — compose hooks + components, no direct API/DB calls.
+- **Business logic lives in hooks and `local/`**, not pages.
 - **All user-facing strings Polish**, hard-coded (no i18n).
 - **Theme is centralized** — don't bypass the palette with inline `sx` colors.
-- **`ErrorBoundary`** wraps the routed content; **`LoadingScreen`** for suspense/auth-loading.
-</content>
+- **SM-2 parity**: never edit `local/srs.ts` or backend `services/srs.py`
+  alone — change both and regenerate the fixture in `local/srs.test.ts`.
+- `npm test` runs vitest (currently the SRS parity suite).
