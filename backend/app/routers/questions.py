@@ -1,4 +1,3 @@
-import asyncio
 import random
 import uuid
 
@@ -127,10 +126,9 @@ async def browse_questions(
         .where(*base_where)
     )
 
-    rows, total = await asyncio.gather(
-        db.execute(items_stmt),
-        db.execute(count_stmt),
-    )
+    # A single AsyncSession can't run concurrent executes; await sequentially.
+    rows = await db.execute(items_stmt)
+    total = await db.execute(count_stmt)
     return BrowseQuestionsPage(
         items=[_to_detail(q) for q in rows.scalars().all()],
         total=total.scalar_one(),

@@ -1,4 +1,3 @@
-import asyncio
 import uuid
 from datetime import date, timedelta
 
@@ -94,13 +93,13 @@ async def _weak_categories(db: AsyncSession, user_id: uuid.UUID) -> list[WeakCat
 
 
 async def get_user_stats(db: AsyncSession, user_id: uuid.UUID) -> UserStatsResponse:
-    due, studied, total, streak, weak = await asyncio.gather(
-        _due_today(db, user_id),
-        _total_studied(db, user_id),
-        _total_questions(db),
-        _streak_days(db, user_id),
-        _weak_categories(db, user_id),
-    )
+    # These all share one AsyncSession, so they can't run concurrently
+    # (asyncio.gather would raise "session is provisioning a new connection").
+    due = await _due_today(db, user_id)
+    studied = await _total_studied(db, user_id)
+    total = await _total_questions(db)
+    streak = await _streak_days(db, user_id)
+    weak = await _weak_categories(db, user_id)
     return UserStatsResponse(
         due_today=due,
         total_studied=studied,

@@ -1,5 +1,3 @@
-import asyncio
-
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,12 +27,13 @@ async def get_latest_bundle(db: AsyncSession = Depends(get_db)) -> BundleRespons
     )
     version_stmt = select(func.count(), func.max(Question.created_at)).where(*_ACTIVE)
 
-    questions_res, categories_res, deleted_res, version_res = await asyncio.gather(
-        db.execute(questions_stmt),
-        db.execute(categories_stmt),
-        db.execute(deleted_stmt),
-        db.execute(version_stmt),
-    )
+    # NOTE: a single AsyncSession (one DB connection) is not safe for concurrent
+    # use — asyncio.gather over db.execute raises "session is provisioning a new
+    # connection". The queries serialize on the wire anyway, so await in sequence.
+    questions_res = await db.execute(questions_stmt)
+    categories_res = await db.execute(categories_stmt)
+    deleted_res = await db.execute(deleted_stmt)
+    version_res = await db.execute(version_stmt)
 
     questions = questions_res.scalars().all()
     count, max_created = version_res.one()
