@@ -34,3 +34,8 @@ class StudyAnswer(Base):
     answered_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )
+    # Client-generated event UUID for offline-sync idempotency
+    # (NULL for answers submitted via the live endpoint).
+    client_event_id: Mapped[uuid.UUID | None] = mapped_column(
+        UUID(as_uuid=True), unique=True, nullable=True
+    )

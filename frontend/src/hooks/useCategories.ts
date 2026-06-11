@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { getCategories } from '../api/categories';
+import { getLocalCategories } from '../local/questions';
 
 export function useCategories() {
   return useQuery({
     queryKey: ['categories'],
-    queryFn: getCategories,
+    queryFn: getLocalCategories,
   });
 }

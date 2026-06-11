@@ -1,5 +1,5 @@
 import uuid
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 
 from app.models.progress import UserQuestionProgress
 
@@ -18,7 +18,19 @@ WRONG, GOOD, EASY = 0, 3, 5
 _EASY_INTERVAL_BONUS = 1.3
 
 
-def apply_sm2(progress: UserQuestionProgress, quality: int) -> UserQuestionProgress:
+def apply_sm2(
+    progress: UserQuestionProgress,
+    quality: int,
+    *,
+    reviewed_at: datetime | None = None,
+) -> UserQuestionProgress:
+    """Apply one SM-2 review.
+
+    ``reviewed_at`` defaults to now; the offline-sync replay passes the
+    original answer timestamp so intervals are anchored to when the user
+    actually reviewed, not when the batch reached the server.
+    """
+    reviewed_at = reviewed_at or datetime.now(timezone.utc)
     if quality == WRONG:
         progress.repetitions = 0
         interval = 1
@@ -37,7 +49,7 @@ def apply_sm2(progress: UserQuestionProgress, quality: int) -> UserQuestionProgr
         # GOOD: easiness factor unchanged (neutral pass)
 
     progress.interval_days = interval
-    progress.next_review_at = date.today() + timedelta(days=interval)
-    progress.last_reviewed_at = datetime.now(timezone.utc)
+    progress.next_review_at = reviewed_at.date() + timedelta(days=interval)
+    progress.last_reviewed_at = reviewed_at
     progress.last_quality = quality
     return progress

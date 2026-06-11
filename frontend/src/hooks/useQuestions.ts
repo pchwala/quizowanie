@@ -1,26 +1,12 @@
 import { useQuery } from '@tanstack/react-query';
-import { getQuestions, getQuestion, getBrowseQuestions, type QuestionFilters, type BrowseFilters } from '../api/questions';
+import { browseLocalQuestions, type LocalBrowseFilters } from '../local/questions';
 
-export function useQuestions(filters: QuestionFilters) {
-  return useQuery({
-    queryKey: ['questions', filters],
-    queryFn: () => getQuestions(filters),
-    placeholderData: (prev) => prev,
-  });
-}
-
-export function useQuestionDetail(id: string | null) {
-  return useQuery({
-    queryKey: ['question', id],
-    queryFn: () => getQuestion(id!),
-    enabled: id !== null,
-  });
-}
+export type BrowseFilters = LocalBrowseFilters;
 
 export function useBrowseQuestions(filters: BrowseFilters) {
   return useQuery({
     queryKey: ['browse/questions', filters],
-    queryFn: () => getBrowseQuestions(filters),
+    queryFn: () => browseLocalQuestions(filters),
     placeholderData: (prev) => prev,
   });
 }

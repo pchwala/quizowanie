@@ -15,6 +15,7 @@ import { useUserPreferences } from '../hooks/useUserPreferences';
 import { useNewLearnedToday } from '../store/dailyProgress';
 import WeakCategoriesChart from '../components/stats/WeakCategoriesChart';
 import CategoryPickerModal from '../components/study/CategoryPickerModal';
+import RegisterCta from '../components/common/RegisterCta';
 
 const DAYS = ['Nd', 'Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb'];
 
@@ -91,6 +92,8 @@ export default function NaukaPage() {
       >
         <Box component="span" sx={{ color: 'primary.main' }}>quiz</Box>minds
       </Typography>
+
+      <RegisterCta />
 
       {/* Spaced repetition section */}
       <Typography variant="caption" sx={{ color: 'text.secondary', mb: 1, display: 'block', px: 0.5 }}>

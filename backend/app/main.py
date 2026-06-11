@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
 from app.dependencies import init_firebase
-from app.routers import auth, categories, questions, study, users
+from app.routers import auth, bundles, categories, questions, study, users
 
 
 @asynccontextmanager
@@ -25,6 +25,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router)
+app.include_router(bundles.router)
 app.include_router(categories.router)
 app.include_router(questions.router)
 app.include_router(study.router)

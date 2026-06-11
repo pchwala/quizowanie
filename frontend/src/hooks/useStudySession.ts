@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { type StudySession, type StudyMode, type QuestionDetail, type AnswerQuality } from '../types/api';
-import * as studyApi from '../api/study';
-import { getQuestion } from '../api/questions';
+import { startLocalSession, getNextForSession, submitLocalAnswer } from '../local/engine';
+import { syncNow } from '../sync/syncEngine';
 import { useDailyProgressStore } from '../store/dailyProgress';
 
 interface UseStudySessionOptions {
@@ -28,15 +28,15 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
   isFlippedRef.current = isFlipped;
   currentQuestionRef.current = currentQuestion;
 
-  const fetchNext = async (sessionId: string): Promise<boolean> => {
-    const brief = await studyApi.getNextQuestion(sessionId);
-    if (brief === null) {
+  const fetchNext = async (s: StudySession): Promise<boolean> => {
+    // Local store holds the full row — no separate detail fetch needed.
+    const detail = await getNextForSession(s);
+    if (detail === null) {
       setCurrentQuestion(null);
       setIsFlipped(false);
       setSelectedOption(null);
       return false;
     }
-    const detail = await getQuestion(brief.id);
     // Batched: back face clears (isFlipped=false stops rendering answer),
     // front face loads new question — no flash of new answer during flip animation.
     setCurrentQuestion(detail);
@@ -46,17 +46,16 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
   };
 
   const startSession = async (categoryIds?: string[], mode: StudyMode = 'mixed') => {
-    const s = await studyApi.startSession(categoryIds, mode);
+    const s = startLocalSession(categoryIds?.length ? categoryIds : null, mode);
     modeRef.current = mode;
     countedIdsRef.current = new Set();
     setIsComplete(false);
     setIsEmpty(false);
     setAnswered(0);
-    if (await fetchNext(s.id)) {
+    if (await fetchNext(s)) {
       setSession(s);
     } else {
-      // Nothing to study for this mode — discard the just-created session
-      await studyApi.endSession(s.id).catch(() => {});
+      // Nothing to study for this mode
       setIsEmpty(true);
     }
   };
@@ -72,13 +71,13 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
     const s = sessionRef.current;
     if (!s || !currentQuestion) return;
     setAnswered((n) => n + 1);
-    await studyApi.submitAnswer(s.id, currentQuestion.id, quality);
+    await submitLocalAnswer(s, currentQuestion.id, quality);
     // Count distinct new questions toward the local daily goal.
     if (modeRef.current === 'new' && !countedIdsRef.current.has(currentQuestion.id)) {
       countedIdsRef.current.add(currentQuestion.id);
       useDailyProgressStore.getState().recordNew();
     }
-    if (!(await fetchNext(s.id))) {
+    if (!(await fetchNext(s))) {
       setIsComplete(true);
     }
   };
@@ -90,9 +89,6 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
   selectOptionRef.current = selectOption;
 
   const endSession = async () => {
-    if (sessionRef.current) {
-      await studyApi.endSession(sessionRef.current.id).catch(() => {});
-    }
     setSession(null);
     setCurrentQuestion(null);
     setIsFlipped(false);
@@ -101,6 +97,8 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
     setIsEmpty(false);
     setAnswered(0);
     queryClient.invalidateQueries({ queryKey: ['userStats'] });
+    // Opportunistic push of the session's answers (no-op offline/anonymous-only).
+    void syncNow();
   };
 
   useEffect(() => {

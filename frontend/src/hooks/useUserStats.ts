@@ -1,9 +1,9 @@
 import { useQuery } from '@tanstack/react-query';
-import { getUserStats } from '../api/users';
+import { getLocalStats } from '../local/stats';
 
 export function useUserStats() {
   return useQuery({
     queryKey: ['userStats'],
-    queryFn: getUserStats,
+    queryFn: getLocalStats,
   });
 }

@@ -12,10 +12,14 @@ import {
   Link,
 } from '@mui/material';
 import GoogleIcon from '@mui/icons-material/Google';
+import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  linkWithCredential,
+  linkWithPopup,
+  EmailAuthProvider,
   setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
@@ -23,6 +27,7 @@ import {
 import { FirebaseError } from 'firebase/app';
 import { useNavigate } from 'react-router-dom';
 import { auth, googleProvider } from '../firebase';
+import { syncNow } from '../sync/syncEngine';
 
 type Mode = 'login' | 'register';
 
@@ -46,9 +51,16 @@ function getFirebaseErrorMessage(err: unknown): string {
   return 'Wystąpił błąd. Spróbuj ponownie.';
 }
 
+/**
+ * Login / register screen. The app no longer requires an account — this page
+ * is reached from the register CTA or the Menu. When the current Firebase user
+ * is anonymous, registering LINKS the credential onto the anon uid (server
+ * data transfers seamlessly); signing into an existing account switches uid
+ * and the event-log union merges local progress on the next sync.
+ */
 export default function LoginPage() {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<Mode>('login');
+  const [mode, setMode] = useState<Mode>('register');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [rememberMe, setRememberMe] = useState(true);
@@ -58,18 +70,28 @@ export default function LoginPage() {
   const applyPersistence = () =>
     setPersistence(auth, rememberMe ? browserLocalPersistence : browserSessionPersistence);
 
+  const finish = () => {
+    // Upload the local answer log under the (now registered) identity.
+    void syncNow();
+    navigate('/study', { replace: true });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
     try {
       await applyPersistence();
-      if (mode === 'login') {
-        await signInWithEmailAndPassword(auth, email, password);
-      } else {
+      const anon = auth.currentUser?.isAnonymous ? auth.currentUser : null;
+      if (mode === 'register' && anon) {
+        // Upgrade-in-place: anon uid is preserved, server rows carry over.
+        await linkWithCredential(anon, EmailAuthProvider.credential(email, password));
+      } else if (mode === 'register') {
         await createUserWithEmailAndPassword(auth, email, password);
+      } else {
+        await signInWithEmailAndPassword(auth, email, password);
       }
-      navigate('/study', { replace: true });
+      finish();
     } catch (err: unknown) {
       setError(getFirebaseErrorMessage(err));
     } finally {
@@ -82,8 +104,23 @@ export default function LoginPage() {
     setLoading(true);
     try {
       await applyPersistence();
-      await signInWithPopup(auth, googleProvider);
-      navigate('/study', { replace: true });
+      const anon = auth.currentUser?.isAnonymous ? auth.currentUser : null;
+      if (anon) {
+        try {
+          await linkWithPopup(anon, googleProvider);
+        } catch (err: unknown) {
+          // Google account already registered — sign into it instead; local
+          // progress merges via the event-log union on sync.
+          if (err instanceof FirebaseError && err.code === 'auth/credential-already-in-use') {
+            await signInWithPopup(auth, googleProvider);
+          } else {
+            throw err;
+          }
+        }
+      } else {
+        await signInWithPopup(auth, googleProvider);
+      }
+      finish();
     } catch (err: unknown) {
       setError(getFirebaseErrorMessage(err));
     } finally {
@@ -102,11 +139,22 @@ export default function LoginPage() {
       }}
     >
       <Paper variant="outlined" sx={{ p: 4, width: '100%', maxWidth: 440 }}>
+        <Button
+          startIcon={<ArrowBackIcon />}
+          size="small"
+          color="inherit"
+          onClick={() => navigate(-1)}
+          sx={{ mb: 1 }}
+        >
+          Wróć
+        </Button>
         <Typography variant="h5" gutterBottom sx={{ fontWeight: 700, textAlign: 'center' }}>
-          Zaloguj się
+          {mode === 'register' ? 'Załóż konto' : 'Zaloguj się'}
         </Typography>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 3, textAlign: 'center' }}>
-          Witaj, zaloguj się aby kontynuować
+          {mode === 'register'
+            ? 'Twoje postępy zostaną zapisane i zsynchronizowane na wszystkich urządzeniach'
+            : 'Witaj, zaloguj się aby kontynuować'}
         </Typography>
 
         {error && (
@@ -124,7 +172,7 @@ export default function LoginPage() {
           onClick={handleGoogleSignIn}
           disabled={loading}
         >
-          Zaloguj się przez Google
+          Kontynuuj przez Google
         </Button>
 
         <Divider sx={{ my: 3 }}>lub</Divider>

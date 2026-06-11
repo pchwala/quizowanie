@@ -1,9 +1,46 @@
 # Status — Done / Remaining / Known Issues
 
-_Last reconciled against the code on 2026-06-09 (branch `front-refactor`)._
+_Last reconciled against the code on 2026-06-11 (branch `feature`)._
 
 The MVP web app is functionally complete. What's left is testing and minor bug
 polish.
+
+## Local-first refactor (2026-06-11) — pre-Capacitor
+
+The app was inverted to **local-first + anonymous use + account sync**. No
+login wall: the study engine (SM-2, next-question staging, stats) now runs
+on-device against a Capacitor SQLite store (`jeep-sqlite` wasm on web), and the
+server became a sync backend.
+
+- **Question pool**: fetched on first run from the **public**
+  `GET /bundles/latest` (network required once), cached in SQLite, refreshed in
+  background with tombstone deletes (`frontend/src/local/bundle.ts`).
+- **Identity**: study never blocks on auth. `signInAnonymously()` attaches
+  lazily when online (`AuthContext`); registering **links** the credential onto
+  the anon uid (`LoginPage`), with sign-in fallback when the account exists.
+- **Sync & conflicts**: answers are immutable events (client UUIDs) in a local
+  `answer_events` log, pushed in bulk to `POST /study/sync` — **idempotent via
+  `study_answers.client_event_id`** (union semantics). Per-question progress
+  resolves **last-write-wins by `last_reviewed_at`** in both directions. SM-2
+  replay on the server is anchored to the original `answered_at`.
+- **Parity**: `frontend/src/local/srs.ts` must stay identical to
+  `backend/app/services/srs.py` — guarded by `src/local/srs.test.ts` (vitest,
+  fixture generated from the Python implementation; `npm test`).
+- The old per-answer `/study/sessions/*` endpoints remain but the frontend no
+  longer calls them; unused `api/*` clients were removed (only `client.ts`
+  stays, for bundles + sync).
+
+**Remaining for this refactor:**
+1. Run the Alembic migration `f6a5b4c3d2e1` (adds
+   `study_answers.client_event_id`) against Neon — not yet applied.
+2. `POST /study/sync` idempotency integration test — needs a disposable
+   Postgres (no pytest infra yet; do NOT test against prod Neon).
+3. `npx cap add android` + the mobile UI polish track
+   (`dev/MOBILE_CONSIDERATIONS.md` §6+). `capacitor.config.ts`, `base: './'`,
+   and the SQLite layer are already in place.
+4. Lint carries 7 pre-existing `react-hooks` v7 errors (`useStudySession` refs
+   pattern, `CategoryPickerModal`, `AuthContext` fast-refresh) — untouched by
+   this refactor.
 
 ## Backend — 100% of MVP scope
 

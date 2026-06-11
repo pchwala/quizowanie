@@ -2,6 +2,7 @@ import { Box } from '@mui/material';
 import { Outlet, useLocation } from 'react-router-dom';
 import BottomNav from './BottomNav';
 import ErrorBoundary from '../common/ErrorBoundary';
+import SyncToast from '../common/SyncToast';
 
 function useShouldShowNav() {
   const { pathname } = useLocation();
@@ -19,6 +20,7 @@ export default function AppShell() {
         </ErrorBoundary>
       </Box>
       {showNav && <BottomNav />}
+      <SyncToast />
     </Box>
   );
 }
