@@ -103,20 +103,6 @@ Data: `data/final_questions.json` holds 4500 compiled questions ready to load.
    study, registration sync, multi-device merge).
 3. **Minor bug fixes** — see below.
 
-## Known issues (`dev/ISSUES.md`)
-
-1. **FIXED** — Tab refocus re-requested questions/categories and scrambled
-   answers. Resolved via `refetchOnWindowFocus: false` on the QueryClient
-   (`App.tsx`).
-2. **PARTIALLY FIXED** — Flash of the *next* question's answer for a brief moment
-   when flipping back to the question side. Mitigated by batching
-   `setCurrentQuestion` + `setIsFlipped(false)` in `useStudySession.fetchNext`.
-   May still warrant a closer look on slow renders.
-3. **OPEN** — Browse pagination uses `limit`/`offset` under the hood. Desired:
-   proper page-number pagination with `?page=n` in the URL so the user can jump
-   to any page. Frontend `BrowsePage` uses MUI `Pagination` with `PAGE_SIZE=50`;
-   the URL-driven `?page=n` deep-linking is the outstanding piece.
-
 ## Recently shipped (git history)
 
 - Clickable options on flashcard for multiple/boolean questions.
