@@ -1,14 +1,19 @@
 import { Network } from '@capacitor/network';
 import client from '../api/client';
 import { auth } from '../firebase';
-import { getDb, persistWebStore, query, run, setMeta } from '../local/db';
-import { type AnswerQuality, type StudyMode } from '../types/api';
+import { getDb, getMeta, persistWebStore, query, run, setMeta } from '../local/db';
+import { type AnswerQuality, type StudyMode, type UserPreferences } from '../types/api';
 
 /**
- * Sync engine — pushes the local answer-event log to `POST /study/sync` and
- * reconciles the returned canonical progress with last-write-wins per
- * question. Non-destructive in both directions: events are unioned by UUID,
- * progress rows resolve by the newer `last_reviewed_at`.
+ * Sync engine — mirrors the device's user data with `POST /sync`. The client
+ * is the study engine; the server only stores.
+ *
+ * Push: unsynced answer events (unioned server-side by UUID), the ENTIRE
+ * local progress table (server upserts per question, LWW by
+ * `last_reviewed_at`), and preferences (null = never set locally).
+ * Pull: events this device is missing (`server_seq > cursor` — rebuilds full
+ * history and stats on a fresh device), all server progress rows (applied
+ * with the same LWW rule), and preferences.
  *
  * Requires a Firebase user (anonymous or linked) + connectivity; both attach
  * lazily, so study never waits on this module.
@@ -22,7 +27,7 @@ interface LocalAnswerEvent {
   mode: StudyMode;
 }
 
-interface ServerProgressRow {
+interface LocalProgressRow {
   question_id: string;
   repetitions: number;
   easiness_factor: number;
@@ -34,7 +39,10 @@ interface ServerProgressRow {
 
 interface SyncResponse {
   synced: number;
-  progress: ServerProgressRow[];
+  events: LocalAnswerEvent[];
+  progress: LocalProgressRow[];
+  preferences: UserPreferences | Record<string, never>;
+  cursor: number;
 }
 
 export const SYNC_DONE_EVENT = 'quizowanie:sync-done';
@@ -48,8 +56,9 @@ function chunk<T>(arr: T[], size: number): T[][] {
 }
 
 /**
- * Run one full push+pull cycle. Returns the number of newly synced answers,
- * or null when sync is not possible right now (offline / no identity / busy).
+ * Run one full push+pull cycle. Returns the number of answers exchanged
+ * (pushed + pulled), or null when sync is not possible right now
+ * (offline / no identity / busy).
  */
 export async function syncNow(): Promise<number | null> {
   if (syncing) return null;
@@ -64,10 +73,23 @@ export async function syncNow(): Promise<number | null> {
 
     // Anonymous users have a single device — nothing to pull, so skip the
     // round-trip when there is also nothing to push (avoids an API call on
-    // every tab refocus). Registered users always pull (multi-device merge).
+    // every tab refocus). Registered users always pull (multi-device mirror).
     if (events.length === 0 && auth.currentUser.isAnonymous) return 0;
 
-    const { data } = await client.post<SyncResponse>('/study/sync', { events });
+    const progress = await query<LocalProgressRow>(
+      'SELECT question_id, repetitions, easiness_factor, interval_days, next_review_at, last_reviewed_at, last_quality FROM progress',
+    );
+    // Raw meta read, NOT getLocalPreferences(): null must mean "never set
+    // locally" so a fresh device cannot clobber server prefs with defaults.
+    const rawPrefs = await getMeta('preferences');
+    const cursor = Number((await getMeta('sync_cursor')) ?? '0');
+
+    const { data } = await client.post<SyncResponse>('/sync', {
+      events,
+      progress,
+      preferences: rawPrefs ? JSON.parse(rawPrefs) : null,
+      cursor,
+    });
 
     // Mark pushed events as synced (chunked to keep placeholder lists sane).
     for (const part of chunk(events, 500)) {
@@ -77,7 +99,26 @@ export async function syncNow(): Promise<number | null> {
       );
     }
 
-    // Pull-reconcile: LWW per question by last_reviewed_at.
+    // Insert pulled events (other devices' history) — this is what makes
+    // streak/stats correct after a reinstall or on a second device.
+    // OR IGNORE keeps duplicates a no-op; synced=1 prevents re-push loops.
+    if (data.events.length) {
+      const db = await getDb();
+      for (const part of chunk(data.events, 500)) {
+        await db.executeSet([
+          {
+            statement: `INSERT OR IGNORE INTO answer_events
+                (event_id, question_id, quality, answered_at, mode, synced)
+              VALUES (?, ?, ?, ?, ?, 1)`,
+            values: part.map((e) => [
+              e.event_id, e.question_id, e.quality, e.answered_at, e.mode,
+            ]),
+          },
+        ]);
+      }
+    }
+
+    // Pull-reconcile progress: LWW per question by last_reviewed_at.
     const local = await query<{ question_id: string; last_reviewed_at: string | null }>(
       'SELECT question_id, last_reviewed_at FROM progress',
     );
@@ -113,13 +154,21 @@ export async function syncNow(): Promise<number | null> {
       ]);
     }
 
+    // Restore preferences only when this device never set any.
+    if (!rawPrefs && data.preferences && Object.keys(data.preferences).length > 0) {
+      await setMeta('preferences', JSON.stringify(data.preferences));
+    }
+
+    // Advance the pull cursor only after the pulled events are stored.
+    await setMeta('sync_cursor', String(data.cursor));
     await setMeta('last_sync_at', new Date().toISOString());
     await persistWebStore();
 
-    if (data.synced > 0) {
-      window.dispatchEvent(new CustomEvent(SYNC_DONE_EVENT, { detail: { synced: data.synced } }));
+    const exchanged = data.synced + data.events.length;
+    if (exchanged > 0) {
+      window.dispatchEvent(new CustomEvent(SYNC_DONE_EVENT, { detail: { synced: exchanged } }));
     }
-    return data.synced;
+    return exchanged;
   } catch {
     return null; // offline / auth failure — retried on the next trigger
   } finally {

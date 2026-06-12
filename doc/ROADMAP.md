@@ -49,8 +49,9 @@ included, and conflicts resolve by event-log union + LWW, not server-wins):
   `npx cap add android` still pending.
 - ✓ **Local SQLite** (`@capacitor-community/sqlite`, `jeep-sqlite` on web) —
   now the **source of truth**, not a shadow; the study engine runs on-device.
-- ✓ **Offline study** with an `answer_events` log synced via `POST /study/sync`
-  (idempotent union by client UUID; per-question LWW by `last_reviewed_at`).
+- ✓ **Offline study** with an `answer_events` log synced via `POST /sync`
+  (idempotent union by client UUID; per-question LWW by `last_reviewed_at`;
+  bidirectional mirror — a fresh device fully restores a registered account).
 - ✓ **Question bundle** — `GET /bundles/latest` (public) with tombstones;
   `min_required_version` force-refresh + delta updates remain post-launch.
 - **Push notifications** — FCM + `@capacitor/push-notifications`; new `fcm_token`

@@ -1,9 +1,3 @@
-export interface User {
-  id: string;
-  email: string;
-  created_at: string;
-}
-
 export interface Category {
   id: string;
   name: string;
@@ -33,7 +27,7 @@ export interface BrowseQuestion {
   options: string[] | null;
 }
 
-// Returned by GET /questions/:id — includes answer (reveal after submission)
+// Full question row from the local store — includes answer (revealed after flip)
 export interface QuestionDetail extends BrowseQuestion {
   answer: string;
   payload: Record<string, unknown>;

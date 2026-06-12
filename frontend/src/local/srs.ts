@@ -1,12 +1,13 @@
 import { type AnswerQuality } from '../types/api';
 
 /**
- * SM-2 — faithful TypeScript port of backend/app/services/srs.py.
+ * SM-2 — the single implementation of the scheduling algorithm (the server
+ * stores client-computed progress verbatim and runs no SRS math).
  * Three-grade scale: 0 (wrong) / 3 (good) / 5 (easy). Good is a neutral pass
  * (easiness factor unchanged); only wrong and easy move the EF.
  *
- * Any change here MUST be mirrored in the Python service (and vice versa) —
- * the offline client and the server replay must produce identical schedules.
+ * srs.test.ts is the frozen reference spec — a change that fails the fixture
+ * changes every user's schedule, so only do it deliberately and regenerate.
  */
 
 export const WRONG = 0;

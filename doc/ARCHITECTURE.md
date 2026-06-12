@@ -32,8 +32,12 @@ issues JWTs; FastAPI verifies them on every request via `firebase-admin`.
             │  sync/syncEngine ──(online & Firebase identity)──┐              │
             └─────────────────────────────────────────────────┼──────────────┘
                                                               ▼
-                       Backend:  GET /bundles/latest (public)  +  POST /study/sync (auth)
+                       Backend:  GET /bundles/latest (public)  +  POST /sync (auth)
 ```
+
+The backend has exactly three routes (`/health`, `/bundles/latest`, `/sync`) —
+it provides the question pool and mirrors per-user data, nothing else. The
+study engine exists only on the device.
 
 ## Identity & auth flow
 
@@ -59,41 +63,50 @@ an auth gate.
 
 ## Offline & sync model
 
+- **The server mirrors, it doesn't compute**: `POST /sync` pushes this
+  device's unsynced answer events, its **entire** client-computed progress
+  table, and preferences; the server stores them verbatim (no SM-2 replay) and
+  returns what the device is missing.
 - **Answers are immutable events**: every rating appends to a local
-  `answer_events` row with a client-generated UUID. Sync = bulk POST to
-  `/study/sync`; the server dedupes by `client_event_id` (**union semantics —
-  re-posting is a no-op**), logs answers, and replays SM-2 in `answered_at`
-  order.
+  `answer_events` row with a client-generated UUID. The server dedupes by
+  `client_event_id` (**union semantics — re-posting is a no-op**) and assigns
+  each row a monotonic `server_seq`. The pull side returns events with
+  `server_seq > cursor`, so a fresh device (cursor 0) receives the **full
+  answer history** — streak and stats rebuild correctly after a reinstall or
+  on a second device. This is the **restore guarantee**: a registered user can
+  delete the app, return later on a new device, log in, and get everything
+  back (events + progress + preferences).
 - **Conflict policy**: per-question progress resolves **last-write-wins by
-  `last_reviewed_at`** in both directions (server skips events older than its
-  row; client only overwrites local rows when the server's is newer). Nothing
-  is ever wiped.
+  `last_reviewed_at`** in both directions (server upserts only newer rows;
+  client only overwrites local rows when the server's is newer). Nothing is
+  ever wiped.
 - **Question pool**: fetched from the public `GET /bundles/latest` on first
   run, cached in SQLite, refreshed in background on later launches; tombstoned
   questions are deleted locally.
 - **Sync triggers**: reconnect, tab refocus, session end, identity attach,
   registration. Anonymous users skip the round-trip when there's nothing to
   push (single device — nothing to pull).
-- **SM-2 parity is a hard invariant**: `frontend/src/local/srs.ts` and
-  `backend/app/services/srs.py` must produce identical schedules; guarded by
-  `frontend/src/local/srs.test.ts` (fixture generated from the Python side).
+- **SM-2 lives only on the device**: `frontend/src/local/srs.ts` is the single
+  implementation; `frontend/src/local/srs.test.ts` is its frozen reference
+  fixture (a failing fixture means every user's schedule changes — only change
+  it deliberately).
 
 ## Data model overview (server)
 
 ```
-users ──< study_sessions ──< study_answers >── questions >── categories (self-ref)
-  │                              (client_event_id UNIQUE          │
-  │                               = offline-sync idempotency)     │
-  └──< user_question_progress >──────────────────────────────────┘
-        (SM-2 state, unique per user+question)
+users ──< study_answers >── questions >── categories (self-ref)
+  │         (client_event_id UNIQUE = idempotency,    │
+  │          server_seq = pull cursor)                │
+  └──< user_question_progress >──────────────────────┘
+        (client-computed SRS state, unique per user+question)
 ```
 
-- **users** — Firebase-backed identity (anon uids included) + `preferences` JSONB.
-- **study_sessions** — live sessions + one synthetic session per sync batch.
-- **study_answers.client_event_id** — UUID from the device's event log; NULL
-  for answers submitted via the live endpoints.
+- **users** — Firebase-backed identity (anon uids included) + `preferences`
+  JSONB (mirror of the device's preferences).
+- **study_answers** — append-only mirror of the device `answer_events` log.
+- **user_question_progress** — stored exactly as the client computed it.
 
-The local SQLite schema mirrors this minus users/sessions (sessions are
+The per-user tables are a **mirror of the local SQLite schema** (sessions are
 in-memory client-side; the event log is the durable record). See
 [FRONTEND.md](FRONTEND.md#local-store) and [BACKEND.md](BACKEND.md#database-schema).
 
@@ -105,6 +118,7 @@ in-memory client-side; the event log is the durable record). See
 - **Strict TypeScript** on the frontend; API/data shapes live in
   `frontend/src/types/api.ts`.
 - **Theme is centralized** in `frontend/src/theme.ts` (dark mode, Inter font).
-- **Answers live on-device** by design now (the local store needs them to grade
-  offline); the legacy `/study/sessions/*` flow still withholds answers until
-  submission but the frontend no longer uses it.
+- **Answers live on-device** by design (the local store needs them to grade
+  offline). The legacy `/study/sessions/*`, `/questions`, `/categories`,
+  `/users/me/*`, and `/auth/me` endpoints were removed in the 2026-06-12
+  backend cleanup.

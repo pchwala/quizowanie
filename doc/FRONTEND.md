@@ -24,17 +24,17 @@ frontend/
       client.ts             # Axios instance + Bearer-token interceptor (bundle + sync only)
     local/                  # ── the on-device data layer (source of truth) ──
       db.ts                 # platform-aware SQLite connection + schema + query/run/meta helpers
-      srs.ts                # SM-2 port — MUST stay identical to backend services/srs.py
-      srs.test.ts           # parity test against a Python-generated fixture (npm test)
-      nextQuestion.ts       # due-SRS → unseen staging (port of routers/study.py)
-      options.ts            # shuffled options builder (port of _build_options)
+      srs.ts                # SM-2 — the ONLY implementation (server stores verbatim)
+      srs.test.ts           # frozen reference fixture for the schedule (npm test)
+      nextQuestion.ts       # due-SRS → unseen staging
+      options.ts            # shuffled options builder
       questions.ts          # row mapper + local browse/category queries
       stats.ts              # due/studied/streak/weak-categories over local tables
       engine.ts             # session orchestration: start/getNext/submitAnswer
       bundle.ts             # first-run fetch + background refresh of /bundles/latest
       identity.ts           # offline device_id + local preferences (meta table)
     sync/
-      syncEngine.ts         # push answer_events → POST /study/sync; LWW pull-reconcile
+      syncEngine.ts         # POST /sync mirror: push events+progress+prefs, pull missing
     hooks/
       useStudySession.ts    # study-flow state machine → local/engine
       useCategories.ts | useQuestions.ts | useUserStats.ts | useUserPreferences.ts
@@ -117,13 +117,23 @@ day-counter for `new`-mode questions; powers `Poznane dziś: n z {daily_limit}`.
 
 ## Sync
 
-`sync/syncEngine.ts` — `syncNow()` pushes unsynced `answer_events` to
-`POST /study/sync`, marks them synced, then reconciles the returned canonical
-progress **last-write-wins by `last_reviewed_at`** (only newer server rows
-overwrite local). Triggers: reconnect (`online` + `@capacitor/network`), tab
-refocus, session end, identity attach, registration. Anonymous users skip the
-call when nothing to push. `SyncToast` (in `AppShell`) listens for
-`SYNC_DONE_EVENT` and shows „Zsynchronizowano X odpowiedzi”.
+`sync/syncEngine.ts` — `syncNow()` runs one mirror cycle against `POST /sync`:
+
+- **Push**: unsynced `answer_events`, the **entire** local `progress` table,
+  and raw `meta.preferences` (`null` = never set locally, so a fresh device
+  can't clobber server prefs with defaults), plus the `sync_cursor` meta.
+- **Pull**: events this device is missing (`server_seq > cursor` — inserted
+  with `INSERT OR IGNORE`, `synced=1`; rebuilds full history/streak/stats on a
+  fresh device), all server progress rows applied **last-write-wins by
+  `last_reviewed_at`** (only newer server rows overwrite local), preferences
+  (only when locally unset), then the new cursor is persisted.
+
+This makes the first sync after login a **full restore** — delete the app,
+come back later, log in, everything returns. Triggers: reconnect (`online` +
+`@capacitor/network`), tab refocus, session end, identity attach,
+registration. Anonymous users skip the call when nothing to push. `SyncToast`
+(in `AppShell`) listens for `SYNC_DONE_EVENT` and shows „Zsynchronizowano X
+odpowiedzi” (X = pushed + pulled).
 
 ## Account UX
 
@@ -153,6 +163,7 @@ call when nothing to push. `SyncToast` (in `AppShell`) listens for
 - **Business logic lives in hooks and `local/`**, not pages.
 - **All user-facing strings Polish**, hard-coded (no i18n).
 - **Theme is centralized** — don't bypass the palette with inline `sx` colors.
-- **SM-2 parity**: never edit `local/srs.ts` or backend `services/srs.py`
-  alone — change both and regenerate the fixture in `local/srs.test.ts`.
-- `npm test` runs vitest (currently the SRS parity suite).
+- **SM-2 is frozen**: `local/srs.ts` is the only implementation; its fixture
+  in `local/srs.test.ts` is the reference spec. A failing fixture means every
+  user's schedule changes — only change it deliberately and regenerate.
+- `npm test` runs vitest (currently the SRS fixture suite).

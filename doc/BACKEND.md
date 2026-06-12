@@ -1,7 +1,11 @@
 # Backend Reference
 
-FastAPI + async SQLAlchemy (asyncpg) + Neon Postgres. All MVP endpoints are
-implemented and wired up — no stubs.
+FastAPI + async SQLAlchemy (asyncpg) + Neon Postgres.
+
+The backend is deliberately minimal: the study engine (SM-2, next-question,
+stats, preferences) runs **on-device** in the frontend. The server does exactly
+two jobs — **provide the question pool** and **mirror per-user data** so a
+registered user can sync across devices and fully restore after a reinstall.
 
 ## Project layout
 
@@ -11,33 +15,29 @@ backend/
     main.py            # app factory, CORS, router registration, lifespan→init_firebase
     config.py          # pydantic-settings (env vars)
     database.py        # async engine + AsyncSessionLocal + Base
-    dependencies.py    # get_db, get_current_user, init_firebase
+    dependencies.py    # get_db, get_current_user (verifies token + auto-creates User), init_firebase
     models/
       user.py          # User (firebase_uid, email, preferences JSONB)
       category.py      # Category (self-referential parent_id)
       question.py      # Question + enums (Source, Type, VerificationStatus)
-      progress.py      # UserQuestionProgress (SM-2 state)
-      session.py       # StudySession, StudyAnswer
-    schemas/           # Pydantic request/response models
-      user.py, category.py, question.py, study.py, stats.py, bundle.py
+      progress.py      # UserQuestionProgress (client-computed SRS state, stored verbatim)
+      answer.py        # StudyAnswer (per-user answer-event log + server_seq cursor)
+    schemas/
+      category.py, bundle.py, sync.py
     routers/
-      auth.py          # POST /auth/me
       bundles.py       # GET /bundles/latest (PUBLIC — no auth)
-      categories.py    # GET /categories
-      questions.py     # GET /questions, /browse/questions, /questions/{id}
-      study.py         # POST/GET /study/sessions/* + POST /study/sync
-      users.py         # GET /users/me/stats, GET/PATCH /users/me/preferences
-    services/
-      srs.py           # apply_sm2 + make_progress
-      stats.py         # parallel stat aggregation queries
+      sync.py          # POST /sync (mirror push + pull)
     seeds/             # data pipeline — see DATA_PIPELINE.md
   scripts/
-    verify_sync.py     # in-process e2e check of /bundles/latest + /study/sync
+    verify_sync.py     # in-process e2e check of /bundles/latest + /sync
                        # (auth overridden, self-cleaning; promote to pytest later)
-  alembic/             # migrations (6 revisions)
+  alembic/             # migrations (7 revisions)
   Dockerfile
   requirements.txt
 ```
+
+There is **no registration endpoint**: `get_current_user` verifies the Firebase
+bearer token and auto-creates the `users` row on first contact.
 
 ## Database schema
 
@@ -48,7 +48,7 @@ backend/
 | firebase_uid | VARCHAR UNIQUE (indexed) | |
 | email | VARCHAR | from decoded token |
 | created_at | TIMESTAMPTZ | |
-| preferences | JSONB | default `{}`; e.g. `{"show_options": bool}` |
+| preferences | JSONB | default `{}`; mirror of the device's `meta.preferences` |
 
 ### `categories`
 | Column | Type | Notes |
@@ -82,45 +82,39 @@ Self-referential; max 2 levels for MVP (category → subcategory).
 - `multiple` → `{"correct": "...", "incorrect": ["...", "...", "..."]}`
 - `boolean`  → `{"correct": true}`
 
-Only `is_active = true` AND `verification_status = verified` questions appear in
-study, list, and browse queries.
+Only `is_active = true` AND `verification_status = verified` questions are
+served in the bundle; the rest appear as tombstones (`deleted_ids`).
 
 ### `user_question_progress`
-SM-2 state; one row per (user, question). `UniqueConstraint(user_id, question_id)`.
+SM-2 state **computed by the client** and stored verbatim (the server runs no
+SRS math). One row per (user, question); `UniqueConstraint(user_id, question_id)`.
 
 | Column | Type | Notes |
 |---|---|---|
 | id | UUID PK | |
 | user_id | UUID FK → users | |
 | question_id | UUID FK → questions | |
-| repetitions | INT | consecutive correct reviews; default 0 |
+| repetitions | INT | consecutive correct reviews |
 | easiness_factor | FLOAT | starts 2.5, floor 1.3 |
-| interval_days | INT | default 0 |
+| interval_days | INT | |
 | next_review_at | DATE nullable | SM-2 works in whole days |
-| last_reviewed_at | TIMESTAMPTZ nullable | |
+| last_reviewed_at | TIMESTAMPTZ nullable | **LWW conflict key** |
 | last_quality | SMALLINT nullable | 0/3/5 |
 
-### `study_sessions`
-| Column | Type | Notes |
-|---|---|---|
-| id | UUID PK | |
-| user_id | UUID FK | |
-| category_id | UUID FK nullable | NULL = all categories |
-| started_at | TIMESTAMPTZ | |
-| ended_at | TIMESTAMPTZ nullable | |
-| questions_answered | INT | incremented per answer |
-
 ### `study_answers`
-One row per submitted answer; drives stats + weak-category aggregation.
+Per-user answer-event log — the server-side mirror of the device's
+`answer_events` table. Append-only.
 
 | Column | Type | Notes |
 |---|---|---|
 | id | UUID PK | |
-| session_id | UUID FK → study_sessions | |
+| user_id | UUID FK → users | indexed (with server_seq) |
 | question_id | UUID FK → questions | |
 | quality | SMALLINT | 0/3/5 |
 | answered_at | TIMESTAMPTZ | |
-| client_event_id | UUID UNIQUE nullable | device event-log UUID; offline-sync idempotency key (NULL for live-endpoint answers) |
+| mode | VARCHAR(10) | `new` / `review` / `mixed` |
+| client_event_id | UUID UNIQUE NOT NULL | device event UUID; sync idempotency key |
+| server_seq | BIGINT IDENTITY | monotonic pull cursor |
 
 ### Migrations (Alembic, in order)
 1. `897c2a87c2cd` — initial schema
@@ -129,21 +123,22 @@ One row per submitted answer; drives stats + weak-category aggregation.
 4. `d4e3f2a1b0c7` — add `preferences` to users
 5. `e5f4a3b2c1d0` — add `mode` + `category_ids` to study_sessions
 6. `f6a5b4c3d2e1` — add `client_event_id` to study_answers (offline sync)
+7. `a7b6c5d4e3f2` — flatten sync: `study_answers` gains `user_id`/`mode`/`server_seq`,
+   `client_event_id` NOT NULL, `session_id` dropped, **`study_sessions` dropped**
 
 ## API endpoints
 
-All routes except `GET /health` and `GET /bundles/latest` require a valid
-Firebase bearer token (anonymous or linked).
+Exactly three routes. `GET /health` and `GET /bundles/latest` are public;
+`POST /sync` requires a Firebase bearer token (anonymous or linked).
 
-### Health & Auth
+### Health
 ```
-GET  /health          # public, Cloud Run probe → {"status":"ok"}
-POST /auth/me         # verify token, upsert user, return UserResponse
+GET /health           # Cloud Run probe → {"status":"ok"}
 ```
 
 ### Bundles (PUBLIC — offline question pool)
 ```
-GET  /bundles/latest  # no auth — anonymous clients download the pool on first run
+GET /bundles/latest   # no auth — anonymous clients download the pool on first run
 ```
 Returns `{ version, question_count, questions[], categories[], deleted_ids[] }`.
 `questions` are full rows (answer + payload included — the client grades
@@ -152,155 +147,68 @@ tombstones (inactive/rejected) the client deletes locally. `version` is
 `"{count}-{max_created_at}"` — good enough for the full-bundle MVP; delta
 updates are post-launch.
 
-### Categories
+### Sync (mirror push + pull)
 ```
-GET  /categories      # flat list ordered by name (parent_id present for nesting)
-```
-
-### Questions
-```
-GET  /questions                 # list; QuestionResponse (NO answer)
-                                 # query: category_id, source, difficulty_min/max(1-10), limit(≤200), offset
-GET  /browse/questions          # list; QuestionDetailResponse (WITH answer) — browse page
-                                 # same filters + type (alias of q_type)
-GET  /questions/{id}            # single QuestionDetailResponse (WITH answer/explanation/mnemonic)
+POST /sync            # the device mirrors its user data and receives what it's missing
 ```
 
-`QuestionResponse` includes shuffled `options` for `multiple`/`boolean` types
-(built in `_build_options`, never marks which is correct); `null` for open
-questions. `boolean` options are `["Prawda", "Fałsz"]`.
-
-Both list endpoints currently filter to `is_active = true` AND
-`verification_status = verified`, ordered by `created_at`, paginated by
-`limit`/`offset`.
-
-### Study
-```
-POST /study/sessions                     # body {category_id?}; validates category; 201 → StudySessionResponse
-GET  /study/sessions/{id}/next           # next question (QuestionResponse, no answer); 404 when exhausted
-POST /study/sessions/{id}/answer         # body {question_id, quality∈{0,3,5}}; applies SM-2, logs answer
-                                         #   → SubmitAnswerResponse {correct_answer, explanation, mnemonic}
-POST /study/sessions/{id}/end            # 204; sets ended_at
-```
-
-**Next-question selection** (`get_next_question` in `routers/study.py`):
-1. **Stage 1 — due SRS**: progress rows for this user with `next_review_at <= today`,
-   joined to active+verified questions, ordered `next_review_at ASC` (most overdue first).
-2. **Stage 2 — unseen**: active+verified questions with no progress row for this
-   user, ordered by `Question.id` (deterministic).
-3. Session `category_id` filter applied to both stages.
-4. `404 Brak pytań do nauki` when both empty.
-
-The endpoint is **idempotent** per session: re-fetching before an answer returns
-the same question (handles reconnects). `submit_answer` rejects answers on an
-already-ended session (`400`).
-
-> The frontend no longer calls the per-answer `/study/sessions/*` endpoints —
-> the study engine runs on-device. They remain valid (and define the reference
-> behavior the local engine mirrors).
-
-### Offline sync
-```
-POST /study/sync      # bulk answer-event ingest from the device event log
-```
-Body `{ events: [{ event_id, question_id, quality, answered_at, mode }] }` →
-`{ synced, progress: [ProgressRow...] }` (all canonical rows for the user).
-
-Semantics (`sync_answers` in `routers/study.py`):
-1. **Idempotent union** — events deduped against `study_answers.client_event_id`
-   (and within the batch); re-posting a batch is a no-op (`synced: 0`).
-2. New events sorted by `answered_at`; one **synthetic StudySession** per batch
-   keeps the stats joins unchanged.
-3. SM-2 **replayed with `reviewed_at=answered_at`** (intervals anchor to when
-   the user actually reviewed, not when the batch arrived).
-4. **LWW guard** — events older than the progress row's `last_reviewed_at` are
-   logged but do not mutate progress (a stale device can't regress another
-   device's schedule).
-5. Unknown/inactive `question_id`s are skipped silently.
-
-Naive client timestamps are treated as UTC (`_as_utc`). Verified end-to-end by
-`scripts/verify_sync.py`.
-
-### Users
-```
-GET   /users/me/stats         # UserStatsResponse
-GET   /users/me/preferences   # UserPreferences (from users.preferences JSONB)
-PATCH /users/me/preferences   # merge-update preferences
-```
-
-`UserStatsResponse`:
-```python
+Request:
+```json
 {
-  due_today: int,          # progress rows with next_review_at <= today
-  total_studied: int,      # count of progress rows (questions seen)
-  streak_days: int,        # consecutive days with ≥1 answer (alive if today or yesterday)
-  total_questions: int,    # active + verified questions in DB
-  weak_categories: [       # bottom 5 by avg quality, min 5 answers each
-    { category_id, category_name, avg_quality }   # avg rounded to 2 dp
-  ]
+  "events":   [ { "event_id": "uuid", "question_id": "uuid", "quality": 3,
+                  "answered_at": "...", "mode": "mixed" } ],
+  "progress": [ { "question_id": "uuid", "repetitions": 2, "easiness_factor": 2.5,
+                  "interval_days": 6, "next_review_at": "2026-06-18",
+                  "last_reviewed_at": "...", "last_quality": 3 } ],
+  "preferences": { "show_options": true },
+  "cursor": 0
 }
 ```
+- `events` — this device's unsynced answer events.
+- `progress` — the device's **entire** local progress table.
+- `preferences` — `null` means "never set locally" (fresh device); the server
+  keeps its copy. Non-null replaces the server copy (client authoritative).
+- `cursor` — highest `server_seq` the device has already pulled (0 = fresh).
 
-Stats run all five queries concurrently via `asyncio.gather` (`services/stats.py`).
-Weak-category thresholds: `_WEAK_CATEGORY_MIN_ANSWERS = 5`, `_WEAK_CATEGORY_LIMIT = 5`.
+Response: `{ synced, events, progress, preferences, cursor }`
+- `synced` — how many pushed events were new (union by `client_event_id`).
+- `events` — rows with `server_seq > request.cursor`, minus the ones just
+  pushed. A fresh device (cursor 0) receives the **full answer history**, so
+  streak/stats rebuild correctly — this is the restore-after-reinstall path.
+- `progress` — ALL server rows for the user; the client applies LWW per
+  question by `last_reviewed_at`.
+- `cursor` — new high-water mark; the client persists it after storing events.
 
-## SM-2 algorithm (`services/srs.py`)
+Semantics (`routers/sync.py`):
+1. **Idempotent event union** — deduped against `study_answers.client_event_id`
+   (and within the batch); re-posting a batch is a no-op (`synced: 0`).
+2. **Progress LWW upsert** — `INSERT … ON CONFLICT (user_id, question_id) DO
+   UPDATE … WHERE excluded.last_reviewed_at > current.last_reviewed_at`. A
+   stale device cannot regress another device's schedule. No SM-2 on the
+   server — rows are stored exactly as the client computed them.
+3. Unknown/inactive `question_id`s are skipped silently (tombstoned questions).
+4. Naive client timestamps are treated as UTC (`_as_utc`).
 
-Three-grade scale **0 (wrong) / 3 (good) / 5 (easy)** — constants `WRONG, GOOD,
-EASY`. The grading is explicit per-grade (not the parametric SM-2 EF formula) so
-that **good is a neutral pass** (easiness factor unchanged); only wrong and easy
-move the EF.
+Verified end-to-end by `scripts/verify_sync.py` (idempotency, verbatim
+storage, LWW guard, and the fresh-device full-restore pull).
 
-> **Parity invariant**: `frontend/src/local/srs.ts` is a faithful port (incl.
-> Python round-half-even) and must stay identical — the offline client and the
-> server replay have to produce the same schedules. Guarded by the frontend
-> test `src/local/srs.test.ts`; regenerate its fixture from this module when
-> either side changes.
->
-> `apply_sm2(progress, quality, reviewed_at=None)` — `reviewed_at` defaults to
-> now; the sync replay passes the original answer timestamp.
+## SM-2
 
-```python
-def apply_sm2(progress, quality):
-    if quality == WRONG:                       # 0 — reset, review tomorrow, EF penalty
-        progress.repetitions = 0
-        interval = 1
-        progress.easiness_factor = max(1.3, progress.easiness_factor - 0.2)
-    else:                                       # GOOD (3) or EASY (5)
-        if   progress.repetitions == 0: interval = 1
-        elif progress.repetitions == 1: interval = 6
-        else: interval = round(progress.interval_days * progress.easiness_factor)
-        progress.repetitions += 1
-        if quality == EASY:                     # 5 — interval bonus + EF bump
-            interval = round(interval * 1.3)
-            progress.easiness_factor = progress.easiness_factor + 0.15
-        # GOOD (3): easiness factor unchanged
-
-    progress.interval_days  = interval
-    progress.next_review_at = date.today() + timedelta(days=interval)
-    progress.last_reviewed_at = now(utc)
-    progress.last_quality = quality
-```
-
-- **Wrong (0):** repetitions → 0, interval → 1 day, EF −0.2 (floored at 1.3).
-- **Good (3):** normal progression 1 → 6 → `round(interval * EF)`, EF unchanged.
-- **Easy (5):** same progression with a ×1.3 interval bonus, EF +0.15.
-
-EF starts 2.5, floors at 1.3. New questions get a fresh row via `make_progress`
-(`repetitions=0, ef=2.5, interval_days=0`) on first answer.
-
-Quality button mapping (frontend): Źle→0, Dobrze→3, Łatwe→5. (Switched from the
-older 4-grade scale — Again/Hard/Good/Easy 0/3/4/5 — in June 2026. No DB
-migration: `quality` is an unconstrained SMALLINT, so legacy rows containing `4`
-remain valid and only blend into historical `avg_quality`.)
+Lives **only** in the frontend: `frontend/src/local/srs.ts`, with
+`frontend/src/local/srs.test.ts` as the frozen reference fixture. The server
+stores whatever schedule the client computed. Quality scale is 0/3/5
+(Źle/Dobrze/Łatwe); `quality` is an unconstrained SMALLINT, so legacy rows from
+the older 4-grade scale (containing `4`) remain valid history.
 
 ## Implementation notes
 
 - **Neon + asyncpg SSL fix**: asyncpg rejects `sslmode`/`channel_binding` URL
   params. `database.py` strips them from `DATABASE_URL` and passes
   `connect_args={"ssl": True}` instead.
+- **One AsyncSession = one connection**: never `asyncio.gather` queries on the
+  same session (raises "session is provisioning a new connection") — await
+  sequentially (see `routers/bundles.py`).
 - `next_review_at` is a `DATE` (not timestamp) — SM-2 operates in whole days.
 - Use Alembic for schema changes; never mutate schema in seed scripts.
 - CORS origins come from `CORS_ORIGINS` env (comma-separated;
   default `http://localhost:5173`).
-</content>

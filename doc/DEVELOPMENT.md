@@ -43,7 +43,7 @@ npm install
 npm run dev        # Vite dev server on http://localhost:5173
 npm run build      # tsc -b && vite build  → dist/
 npm run lint       # eslint (7 pre-existing react-hooks v7 errors — see STATUS.md)
-npm run test       # vitest — includes the SM-2 parity suite (src/local/srs.test.ts)
+npm run test       # vitest — includes the SM-2 fixture suite (src/local/srs.test.ts)
 npm run preview    # preview the production build
 ```
 
@@ -59,17 +59,21 @@ Firebase web config lives in `src/firebase.ts`.
   binary lives at `public/assets/sql-wasm.wasm` (copied from
   `node_modules/sql.js/dist/` — re-copy after a sql.js major bump).
 - To reset local state while testing: clear site data (IndexedDB + localStorage).
-- **SM-2 parity**: never change `frontend/src/local/srs.ts` or
-  `backend/app/services/srs.py` alone — update both and regenerate the fixture
-  in `src/local/srs.test.ts`.
+- **SM-2 is frontend-only**: `frontend/src/local/srs.ts` is the single
+  implementation (the server stores client-computed schedules verbatim).
+  Its fixture in `src/local/srs.test.ts` is the frozen reference — a change
+  that fails it changes every user's schedule; only do that deliberately and
+  regenerate the fixture.
 
 ### Verifying sync end-to-end
 
 ```bash
 cd backend
 PYTHONPATH=. .venv/bin/python scripts/verify_sync.py
-# checks /bundles/latest + /study/sync idempotency against DATABASE_URL,
-# bypassing Firebase (auth dependency overridden); cleans up after itself
+# checks /bundles/latest + the /sync mirror protocol against DATABASE_URL:
+# idempotent event union, verbatim progress storage, LWW guard, fresh-device
+# full restore, preferences round-trip. Bypasses Firebase (auth dependency
+# overridden); cleans up after itself
 ```
 
 ## Migrations (Alembic)
@@ -81,8 +85,8 @@ alembic upgrade head                                    # apply
 alembic downgrade -1                                    # roll back one
 ```
 
-Current head: `f6a5b4c3d2e1` (add client_event_id to study_answers). Never
-mutate schema in seed scripts — migrations only.
+Current head: `a7b6c5d4e3f2` (flatten sync: per-user event log, drop
+study_sessions). Never mutate schema in seed scripts — migrations only.
 
 ## Seeding the question bank
 

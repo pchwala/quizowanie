@@ -1,9 +1,36 @@
 # Status — Done / Remaining / Known Issues
 
-_Last reconciled against the code on 2026-06-11 (branch `feature`)._
+_Last reconciled against the code on 2026-06-12 (branch `feature`)._
 
 The MVP web app is functionally complete. What's left is testing and minor bug
 polish.
+
+## Backend cleanup + mirror sync (2026-06-12)
+
+The backend was cut down to its real job — question provider + user-data
+mirror. Exactly **3 routes** remain: `GET /health`, `GET /bundles/latest`
+(public), `POST /sync` (auth).
+
+- **Removed**: `/auth/me` (redundant — `get_current_user` auto-creates the
+  user), `/categories`, `/questions*`, `/browse/questions`, all
+  `/study/sessions/*` endpoints, `/users/me/stats`, `/users/me/preferences`,
+  `services/srs.py`, `services/stats.py`, and the matching schemas. The SM-2
+  Python↔TS parity invariant is gone — `frontend/src/local/srs.ts` is the only
+  implementation (frozen fixture in `srs.test.ts`).
+- **New sync protocol** (`POST /sync`): the client pushes unsynced events, its
+  entire client-computed progress table, and preferences; the server stores
+  verbatim (events unioned by `client_event_id`, progress LWW by
+  `last_reviewed_at`, prefs replaced when non-null) and returns events the
+  device is missing (`server_seq > cursor`), all progress, and prefs. A fresh
+  device's first sync is a **full restore** (the registered-user guarantee:
+  delete the app, come back anytime, log in, everything returns).
+- **Migration `a7b6c5d4e3f2`** (applied to Neon): `study_answers` gained
+  `user_id`/`mode`/`server_seq`, `client_event_id` NOT NULL, `session_id`
+  dropped, `study_sessions` dropped.
+- **Verified 2026-06-12**: `backend/scripts/verify_sync.py` (rewritten) passes
+  end-to-end against Neon — idempotent union, verbatim progress storage, LWW
+  guard, fresh-device full-restore pull, preferences round-trip. Frontend
+  build + vitest green.
 
 ## Local-first refactor (2026-06-11) — pre-Capacitor
 
@@ -19,24 +46,11 @@ server became a sync backend.
   lazily when online (`AuthContext`); registering **links** the credential onto
   the anon uid (`LoginPage`), with sign-in fallback when the account exists.
 - **Sync & conflicts**: answers are immutable events (client UUIDs) in a local
-  `answer_events` log, pushed in bulk to `POST /study/sync` — **idempotent via
-  `study_answers.client_event_id`** (union semantics). Per-question progress
-  resolves **last-write-wins by `last_reviewed_at`** in both directions. SM-2
-  replay on the server is anchored to the original `answered_at`.
-- **Parity**: `frontend/src/local/srs.ts` must stay identical to
-  `backend/app/services/srs.py` — guarded by `src/local/srs.test.ts` (vitest,
-  fixture generated from the Python implementation; `npm test`).
-- The old per-answer `/study/sessions/*` endpoints remain but the frontend no
-  longer calls them; unused `api/*` clients were removed (only `client.ts`
-  stays, for bundles + sync).
-
-**Verified on 2026-06-11** (Neon is a disposable test DB for now):
-- Alembic migration `f6a5b4c3d2e1` applied (`alembic upgrade head`).
-- `backend/scripts/verify_sync.py` (in-process, auth overridden, self-cleaning)
-  passed end-to-end: `GET /bundles/latest` returns 4493 questions /
-  26 categories; first sync ingests, duplicate batch is a no-op with progress
-  unchanged; exactly one `study_answers` row per event; SM-2 replay state
-  correct.
+  `answer_events` log — **idempotent union** server-side; per-question
+  progress resolves **last-write-wins by `last_reviewed_at`** in both
+  directions. (Protocol since revised — see the 2026-06-12 section above.)
+- Unused `api/*` clients were removed (only `client.ts` stays, for
+  bundles + sync).
 
 **Remaining for this refactor:**
 1. `npx cap add android` + the mobile UI polish track
@@ -48,26 +62,16 @@ server became a sync backend.
 3. Promote `scripts/verify_sync.py` into a proper pytest suite once test infra
    lands (point it at a non-shared Postgres before Neon becomes real prod).
 
-## Backend — 100% of MVP scope
+## Backend — minimal by design
 
-All endpoints implemented, wired up, no stubs.
+The study engine lives in the frontend; the backend has exactly the routes it
+needs (post-cleanup, 2026-06-12):
 
 | Endpoint | Status |
 |---|---|
 | `GET /health` | Done |
-| `POST /auth/me` | Done — Firebase verify + user upsert |
-| `GET /categories` | Done |
-| `GET /questions` | Done — filtered, paginated, no answer |
-| `GET /browse/questions` | Done — same + type filter, reveals answers |
-| `GET /questions/{id}` | Done — full detail |
-| `POST /study/sessions` | Done — validates category |
-| `GET /study/sessions/{id}/next` | Done — due SRS → unseen → 404 |
-| `POST /study/sessions/{id}/answer` | Done — SM-2 + answer logged |
-| `POST /study/sessions/{id}/end` | Done — 204 |
-| `GET /users/me/stats` | Done — due/studied/streak/total/weak |
-| `GET/PATCH /users/me/preferences` | Done — JSONB preferences (`show_options`) |
 | `GET /bundles/latest` | Done — PUBLIC; offline question pool + tombstones |
-| `POST /study/sync` | Done — idempotent bulk event ingest + SM-2 replay (LWW) |
+| `POST /sync` | Done — mirror push/pull: event union, progress LWW, prefs, `server_seq` pull cursor |
 
 Data: `data/final_questions.json` holds 4500 compiled questions ready to load.
 
@@ -78,7 +82,7 @@ Data: `data/final_questions.json` holds 4500 compiled questions ready to load.
 | Anonymous-first auth (lazy anon uid; email/Google account **linking**) | Done |
 | Local SQLite store + offline study engine (`src/local/`) | Done |
 | Bundle bootstrap gate + background refresh | Done |
-| Sync engine (event push + LWW pull) + toast | Done |
+| Sync engine (mirror push/pull + full restore) + toast | Done |
 | AppShell + responsive sidebar | Done |
 | Study flow (Setup → FlashCard → Rating → Complete) | Done |
 | Clickable options on flashcard for multiple/boolean | Done |
@@ -95,12 +99,12 @@ Data: `data/final_questions.json` holds 4500 compiled questions ready to load.
 
 ## Remaining work
 
-1. **Testing** — vitest now exists with the SM-2 parity suite
+1. **Testing** — vitest now exists with the SM-2 fixture suite
    (`frontend/src/local/srs.test.ts`); `backend/scripts/verify_sync.py` covers
    sync e2e. Still missing: next-question staging, local stats aggregation
    (streak + weak categories), the study-flow hook, and a real pytest suite.
 2. **Real-device/manual testing** of the local-first flows (first run, offline
-   study, registration sync, multi-device merge).
+   study, registration sync, multi-device merge, delete-app-and-restore).
 3. **Minor bug fixes** — see below.
 
 ## Recently shipped (git history)
