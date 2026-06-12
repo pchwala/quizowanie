@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { type UserPreferences } from '../types/api';
 import { DEFAULT_PREFERENCES, getLocalPreferences, setLocalPreferences } from '../local/identity';
+import { syncNow } from '../sync/syncEngine';
 
 const QUERY_KEY = ['userPreferences'];
 
@@ -31,6 +32,13 @@ export function useUserPreferences() {
       if (context?.previous) {
         queryClient.setQueryData(QUERY_KEY, context.previous);
       }
+    },
+    onSuccess: () => {
+      // Push the just-written preferences to Neon now. Fire-and-forget:
+      // registered users push immediately; a guest with no unsynced events
+      // returns early in syncNow (stays local until they register); offline
+      // is retried on the next passive trigger.
+      void syncNow();
     },
     onSettled: () => {
       queryClient.invalidateQueries({ queryKey: QUERY_KEY });
