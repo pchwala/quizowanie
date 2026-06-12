@@ -63,5 +63,13 @@ async def get_current_user(
         db.add(user)
         await db.commit()
         await db.refresh(user)
+    elif email and user.email != email:
+        # An anon user (created with email="") just linked a credential — the
+        # token now carries their email. Persist it. The `email and` guard keeps
+        # an anon token from blanking an already-stored email and avoids a write
+        # on every request.
+        user.email = email
+        await db.commit()
+        await db.refresh(user)
 
     return user

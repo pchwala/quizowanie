@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from 'react';
-import { type User, onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { type User, onIdTokenChanged, signInAnonymously } from 'firebase/auth';
 import { auth } from '../firebase';
 import { installSyncTriggers, syncNow } from '../sync/syncEngine';
 
@@ -18,14 +18,25 @@ const AuthContext = createContext<AuthContextValue>({
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
+  // Tracked as its own primitive so registering an anon user re-renders: linking
+  // a credential keeps the same `user` object reference (only mutating it in
+  // place), so setUser alone would be a no-op render — flipping this boolean is
+  // what propagates the now-registered state to consumers.
+  const [isAnonymous, setIsAnonymous] = useState(true);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     installSyncTriggers();
-    return onAuthStateChanged(auth, (u) => {
+    // onIdTokenChanged (not onAuthStateChanged) so the listener also fires when
+    // an anonymous user LINKS a credential — that refreshes the token without a
+    // sign-in event, so onAuthStateChanged would miss it and leave the UI stale.
+    return onIdTokenChanged(auth, (u) => {
       setUser(u);
+      setIsAnonymous(u?.isAnonymous ?? true);
       setLoading(false);
       // Identity (anon or linked) just became available — push any backlog.
+      // After a link this fires with the fresh email-bearing token, which is
+      // what lets the server persist the newly-registered email.
       if (u) void syncNow();
     });
   }, []);
@@ -44,7 +55,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [loading, user]);
 
   return (
-    <AuthContext.Provider value={{ user, loading, isAnonymous: user?.isAnonymous ?? true }}>
+    <AuthContext.Provider value={{ user, loading, isAnonymous }}>
       {children}
     </AuthContext.Provider>
   );
