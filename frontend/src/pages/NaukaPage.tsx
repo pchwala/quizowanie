@@ -12,7 +12,7 @@ import HistoryIcon from '@mui/icons-material/History';
 import { useNavigate } from 'react-router-dom';
 import { useUserStats } from '../hooks/useUserStats';
 import { useUserPreferences } from '../hooks/useUserPreferences';
-import { useNewLearnedToday } from '../store/dailyProgress';
+import { useNewLearnedToday } from '../hooks/useNewLearnedToday';
 import WeakCategoriesChart from '../components/stats/WeakCategoriesChart';
 import CategoryPickerModal from '../components/study/CategoryPickerModal';
 import RegisterCta from '../components/common/RegisterCta';

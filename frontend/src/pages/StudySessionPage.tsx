@@ -5,7 +5,7 @@ import CelebrationIcon from '@mui/icons-material/Celebration';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useStudySession } from '../hooks/useStudySession';
 import { useUserPreferences } from '../hooks/useUserPreferences';
-import { useNewLearnedToday } from '../store/dailyProgress';
+import { useNewLearnedToday } from '../hooks/useNewLearnedToday';
 import SessionComplete from '../components/study/SessionComplete';
 import FlashCard from '../components/flashcard/FlashCard';
 import RatingButtons from '../components/flashcard/RatingButtons';

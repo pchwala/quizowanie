@@ -37,11 +37,11 @@ frontend/
       syncEngine.ts         # POST /sync mirror: push events+progress+prefs, pull missing
     hooks/
       useStudySession.ts    # study-flow state machine → local/engine
+      useNewLearnedToday.ts # "Poznane dziś" derived from answer_events (sync-proof)
       useCategories.ts | useQuestions.ts | useUserStats.ts | useUserPreferences.ts
                             # TanStack Query wrappers over local/*
     store/
       ui.ts                 # Zustand: sidebar/UI state
-      dailyProgress.ts      # Zustand + persist: new questions learned today (localStorage)
     components/
       common/   ProtectedRoute (bundle bootstrap gate), RegisterCta, SyncToast,
                 LoadingScreen, ErrorBoundary
@@ -112,8 +112,11 @@ are batched in `fetchNext`.
 **Keyboard shortcuts** (unchanged): pre-flip `1–4` select option / `Space`
 flips; post-flip `1/2/3` → quality `0/3/5`.
 
-**Daily progress** (`store/dailyProgress.ts`, unchanged): localStorage
-day-counter for `new`-mode questions; powers `Poznane dziś: n z {daily_limit}`.
+**Daily progress** (`hooks/useNewLearnedToday.ts`): `Poznane dziś: n z
+{daily_limit}` counts distinct questions whose **first-ever** answer is today,
+straight from the local `answer_events` log — so it survives reinstalls and
+includes study synced from other devices. Invalidated per answer and on
+`SYNC_DONE_EVENT`.
 
 ## Sync
 

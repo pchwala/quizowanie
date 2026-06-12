@@ -10,7 +10,16 @@ _ASYNC_UNSUPPORTED_PARAMS = {"sslmode", "channel_binding"}
 _clean_query = {k: v for k, v in _raw_url.query.items() if k not in _ASYNC_UNSUPPORTED_PARAMS}
 _clean_url = _raw_url.set(query=_clean_query)
 
-engine = create_async_engine(_clean_url, connect_args={"ssl": True}, echo=False)
+# Neon serverless suspends idle computes — pooled connections go stale and the
+# first request after wake-up would 500. pre_ping validates (and transparently
+# replaces) connections before use; recycle caps their age below Neon's idle window.
+engine = create_async_engine(
+    _clean_url,
+    connect_args={"ssl": True},
+    pool_pre_ping=True,
+    pool_recycle=300,
+    echo=False,
+)
 AsyncSessionLocal = async_sessionmaker(engine, expire_on_commit=False)
 
 

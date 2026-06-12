@@ -61,6 +61,15 @@ Authenticated API calls (sync only):
 There is **no login wall** — `ProtectedRoute` is a bundle-bootstrap gate, not
 an auth gate.
 
+**Storage partitioning note**: sign-in uses the **popup** flow only — the
+redirect flow breaks under third-party storage partitioning (Firefox ETP,
+Safari ITP). Popups must open directly from the click (no awaits first) or
+strict browsers may silently block them. Before a public web deploy, serve
+the Firebase auth helper from the app's own origin (custom `authDomain` +
+reverse-proxy `/__/auth/*` → `pub-quizowanie.firebaseapp.com`) to eliminate
+the third-party storage prompts entirely; on Capacitor/Android, Google
+sign-in goes native instead (mobile track).
+
 ## Offline & sync model
 
 - **The server mirrors, it doesn't compute**: `POST /sync` pushes this

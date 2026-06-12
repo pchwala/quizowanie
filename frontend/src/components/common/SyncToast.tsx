@@ -14,6 +14,7 @@ export default function SyncToast() {
       setMessage(`Zsynchronizowano ${synced} odpowiedzi`);
       // Server may have merged progress from other devices — refresh local-backed views.
       void queryClient.invalidateQueries({ queryKey: ['userStats'] });
+      void queryClient.invalidateQueries({ queryKey: ['newLearnedToday'] });
     };
     window.addEventListener(SYNC_DONE_EVENT, handler);
     return () => window.removeEventListener(SYNC_DONE_EVENT, handler);

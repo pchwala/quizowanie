@@ -66,3 +66,20 @@ export async function getLocalStats(): Promise<UserStats> {
     })),
   };
 }
+
+/**
+ * Daily-goal counter: distinct questions whose FIRST-EVER answer happened
+ * today (local time). Derived from the synced answer_events log, so it
+ * survives reinstalls and counts study done on other devices.
+ */
+export async function getNewLearnedToday(): Promise<number> {
+  const [row] = await query<{ n: number }>(
+    `SELECT COUNT(*) AS n FROM (
+       SELECT question_id, MIN(answered_at) AS first_at
+       FROM answer_events
+       GROUP BY question_id
+       HAVING date(first_at, 'localtime') = date('now', 'localtime')
+     )`,
+  );
+  return row?.n ?? 0;
+}

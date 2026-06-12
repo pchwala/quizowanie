@@ -17,9 +17,11 @@ import {
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signInWithPopup,
+  signInWithCredential,
   linkWithCredential,
   linkWithPopup,
   EmailAuthProvider,
+  GoogleAuthProvider,
   setPersistence,
   browserLocalPersistence,
   browserSessionPersistence,
@@ -42,6 +44,8 @@ const FIREBASE_ERRORS: Record<string, string> = {
   'auth/network-request-failed': 'Błąd sieci. Sprawdź połączenie z internetem.',
   'auth/popup-closed-by-user': 'Okno logowania zostało zamknięte przed zakończeniem.',
   'auth/popup-blocked': 'Przeglądarka zablokowała okno logowania.',
+  'auth/account-exists-with-different-credential':
+    'Konto z tym adresem email istnieje z innym sposobem logowania.',
 };
 
 function getFirebaseErrorMessage(err: unknown): string {
@@ -103,16 +107,27 @@ export default function LoginPage() {
     setError('');
     setLoading(true);
     try {
-      await applyPersistence();
+      // Open the popup straight from the click — any await before window.open
+      // (e.g. the IndexedDB round-trip in setPersistence) can expire the user
+      // activation in strict browsers and get the popup silently blocked.
+      // Persistence is applied AFTER sign-in; Firebase re-persists the
+      // current session, and the default is already local persistence.
       const anon = auth.currentUser?.isAnonymous ? auth.currentUser : null;
       if (anon) {
         try {
           await linkWithPopup(anon, googleProvider);
         } catch (err: unknown) {
           // Google account already registered — sign into it instead; local
-          // progress merges via the event-log union on sync.
+          // progress merges via the event-log union on sync. The failed link
+          // attempt already carries the Google credential, so reuse it
+          // instead of opening a second popup.
           if (err instanceof FirebaseError && err.code === 'auth/credential-already-in-use') {
-            await signInWithPopup(auth, googleProvider);
+            const cred = GoogleAuthProvider.credentialFromError(err);
+            if (cred) {
+              await signInWithCredential(auth, cred);
+            } else {
+              await signInWithPopup(auth, googleProvider);
+            }
           } else {
             throw err;
           }
@@ -120,6 +135,7 @@ export default function LoginPage() {
       } else {
         await signInWithPopup(auth, googleProvider);
       }
+      if (!rememberMe) await applyPersistence();
       finish();
     } catch (err: unknown) {
       setError(getFirebaseErrorMessage(err));
