@@ -14,7 +14,7 @@ import TvIcon from '@mui/icons-material/Tv';
 import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
-import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutline';
+import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlined';
 import { useNavigate } from 'react-router-dom';
 import type { QuestionSource } from '../types/api';
 import { SOURCE_LABELS } from '../types/api';

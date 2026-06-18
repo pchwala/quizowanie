@@ -1,8 +1,4 @@
-import {
-  type AuthoredQuestion,
-  type NewQuestionInput,
-  PUBLIC_SUBMISSIONS_SLUG,
-} from '../types/api';
+import { type AuthoredQuestion, type NewQuestionInput } from '../types/api';
 import { syncNow } from '../sync/syncEngine';
 import { persistWebStore, query, run } from './db';
 
@@ -25,19 +21,13 @@ interface UserQuestionRow {
   verification_status: AuthoredQuestion['verification_status'];
 }
 
-/** Create a private or public open-format question and queue it for sync. */
+/**
+ * Create a private or public open-format question and queue it for sync. Both
+ * visibilities keep the user's chosen real category — provenance is carried by
+ * `source = user_submission`, so public submissions stay sortable by topic.
+ */
 export async function createUserQuestion(input: NewQuestionInput): Promise<string> {
-  let categoryId = input.categoryId;
-  if (input.isPublic) {
-    const [cat] = await query<{ id: string }>(
-      'SELECT id FROM categories WHERE slug = ?',
-      [PUBLIC_SUBMISSIONS_SLUG],
-    );
-    if (!cat) {
-      throw new Error('Brak kategorii „Pytania użytkowników" — odśwież bazę pytań.');
-    }
-    categoryId = cat.id;
-  }
+  const categoryId = input.categoryId;
   if (!categoryId) {
     throw new Error('Wybierz kategorię.');
   }

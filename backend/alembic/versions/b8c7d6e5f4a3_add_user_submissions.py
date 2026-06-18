@@ -1,8 +1,9 @@
 """add user-submitted questions
 
-Adds the ``user_submission`` source value, ``submitted_by`` (FK users) and
-``is_public`` columns on ``questions``, and seeds the shared
-"Pytania użytkowników" category that public submissions are filed under.
+Adds the ``user_submission`` source value plus ``submitted_by`` (FK users) and
+``is_public`` columns on ``questions``. User submissions keep the author's
+chosen real category; their provenance is carried by ``source`` alone (no
+dedicated "user questions" category).
 
 Revision ID: b8c7d6e5f4a3
 Revises: a7b6c5d4e3f2
@@ -19,10 +20,6 @@ revision: str = "b8c7d6e5f4a3"
 down_revision: Union[str, None] = "a7b6c5d4e3f2"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
-
-
-# Fixed id so server and client resolve the same category across databases.
-USER_QUESTIONS_CATEGORY_ID = "aaaaaaaa-0000-0000-0000-000000000001"
 
 
 def upgrade() -> None:
@@ -45,25 +42,8 @@ def upgrade() -> None:
     )
     op.alter_column("questions", "is_public", server_default=None)
 
-    # Shared category for public user submissions.
-    op.execute(
-        sa.text(
-            "INSERT INTO categories (id, name, slug, parent_id) "
-            "VALUES (:id, :name, :slug, NULL) ON CONFLICT (slug) DO NOTHING"
-        ).bindparams(
-            sa.bindparam("id", USER_QUESTIONS_CATEGORY_ID, type_=sa.Uuid()),
-            sa.bindparam("name", "Pytania użytkowników"),
-            sa.bindparam("slug", "pytania-uzytkownikow"),
-        )
-    )
-
 
 def downgrade() -> None:
-    op.execute(
-        sa.text("DELETE FROM categories WHERE id = :id").bindparams(
-            sa.bindparam("id", USER_QUESTIONS_CATEGORY_ID, type_=sa.Uuid())
-        )
-    )
     op.drop_constraint("fk_questions_submitted_by_users", "questions", type_="foreignkey")
     op.drop_column("questions", "is_public")
     op.drop_column("questions", "submitted_by")

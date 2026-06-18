@@ -20,7 +20,6 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useCategories } from '../hooks/useCategories';
 import { useCreateQuestion } from '../hooks/useCreateQuestion';
 import { buildCategoryOptions } from '../utils/categories';
-import { PUBLIC_SUBMISSIONS_SLUG } from '../types/api';
 
 export default function AddQuestionPage() {
   const navigate = useNavigate();
@@ -36,10 +35,8 @@ export default function AddQuestionPage() {
   const [categoryId, setCategoryId] = useState('');
   const [error, setError] = useState('');
 
-  // Private questions go under a real category; never offer the shared public one.
-  const categoryOptions = buildCategoryOptions(
-    categories.filter((c) => c.slug !== PUBLIC_SUBMISSIONS_SLUG),
-  );
+  // Both private and public questions are filed under a real category.
+  const categoryOptions = buildCategoryOptions(categories);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -48,7 +45,7 @@ export default function AddQuestionPage() {
       setError('Pytanie i odpowiedź są wymagane.');
       return;
     }
-    if (!isPublic && !categoryId) {
+    if (!categoryId) {
       setError('Wybierz kategorię.');
       return;
     }
@@ -140,24 +137,25 @@ export default function AddQuestionPage() {
             </ToggleButtonGroup>
           </Box>
 
-          {isPublic ? (
+          <FormControl size="small" fullWidth required>
+            <InputLabel>Kategoria</InputLabel>
+            <Select
+              value={categoryId}
+              label="Kategoria"
+              onChange={(e) => setCategoryId(e.target.value)}
+            >
+              {categoryOptions.map((opt) => (
+                <MenuItem key={opt.id} value={opt.id}>{opt.label}</MenuItem>
+              ))}
+            </Select>
+          </FormControl>
+
+          {isPublic && (
             <Alert severity="info">
-              Pytanie trafi do kategorii „Pytania użytkowników" i do weryfikacji.
-              Twoja kopia pozostaje na urządzeniu niezależnie od wyniku.
+              Pytanie trafi do weryfikacji. Po akceptacji będzie widoczne dla innych
+              w wybranej kategorii. Twoja kopia pozostaje na urządzeniu niezależnie
+              od wyniku.
             </Alert>
-          ) : (
-            <FormControl size="small" fullWidth required>
-              <InputLabel>Kategoria</InputLabel>
-              <Select
-                value={categoryId}
-                label="Kategoria"
-                onChange={(e) => setCategoryId(e.target.value)}
-              >
-                {categoryOptions.map((opt) => (
-                  <MenuItem key={opt.id} value={opt.id}>{opt.label}</MenuItem>
-                ))}
-              </Select>
-            </FormControl>
           )}
 
           {error && <Alert severity="error">{error}</Alert>}

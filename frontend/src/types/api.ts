@@ -22,10 +22,6 @@ export const SOURCE_LABELS: Record<QuestionSource, string> = {
 
 export type QuestionType = 'multiple' | 'boolean' | 'question';
 
-// Slug of the shared category that public user submissions are filed under
-// (seeded server-side, shipped to clients via the bundle).
-export const PUBLIC_SUBMISSIONS_SLUG = 'pytania-uzytkownikow';
-
 export type VerificationStatus = 'pending' | 'verified' | 'rejected';
 
 // Input for the add-question form (open format only in v1).
@@ -36,7 +32,7 @@ export interface NewQuestionInput {
   explanation?: string;
   mnemonic?: string;
   isPublic: boolean;
-  categoryId: string; // ignored when isPublic (forced to the public category)
+  categoryId: string; // real category for both private and public submissions
 }
 
 // A question authored by the current user, as stored/displayed locally.
