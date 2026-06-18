@@ -20,8 +20,9 @@ import {
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { useCategories } from '../hooks/useCategories';
 import { useBrowseQuestions } from '../hooks/useQuestions';
-import type { QuestionDetail, Category, QuestionType, QuestionSource } from '../types/api';
+import type { QuestionDetail, QuestionType, QuestionSource } from '../types/api';
 import { SOURCE_LABELS } from '../types/api';
+import { buildCategoryOptions } from '../utils/categories';
 
 const PAGE_SIZE = 50;
 
@@ -49,34 +50,6 @@ function difficultyColor(d: number | null): 'success' | 'warning' | 'error' | 'd
   if (d <= 3) return 'success';
   if (d <= 6) return 'warning';
   return 'error';
-}
-
-function buildCategoryOptions(cats: Category[]): { id: string; label: string }[] {
-  const childrenOf = new Map<string, Category[]>();
-  for (const c of cats) {
-    if (c.parent_id) {
-      const list = childrenOf.get(c.parent_id) ?? [];
-      list.push(c);
-      childrenOf.set(c.parent_id, list);
-    }
-  }
-  const result: { id: string; label: string }[] = [];
-  const parents = cats
-    .filter((c) => c.parent_id === null)
-    .sort((a, b) => a.name.localeCompare(b.name, 'pl'));
-  for (const parent of parents) {
-    const children = (childrenOf.get(parent.id) ?? []).sort((a, b) =>
-      a.name.localeCompare(b.name, 'pl'),
-    );
-    if (children.length === 0) {
-      result.push({ id: parent.id, label: parent.name });
-    } else {
-      for (const child of children) {
-        result.push({ id: child.id, label: `${parent.name}: ${child.name}` });
-      }
-    }
-  }
-  return result;
 }
 
 function AnswerSection({ question }: { question: QuestionDetail }) {

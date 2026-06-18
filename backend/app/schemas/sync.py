@@ -36,11 +36,49 @@ class ProgressRow(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class AuthoredQuestionPush(BaseModel):
+    """A question authored on the client, pushed to the user's account.
+
+    Immutable once submitted: the server inserts new ids and ignores ids it has
+    already stored (no edit/delete in scope).
+    """
+
+    id: uuid.UUID
+    type: str
+    text: str
+    answer: str
+    payload: dict[str, Any]
+    explanation: str | None = None
+    mnemonic: str | None = None
+    is_public: bool
+    category_id: uuid.UUID
+
+
+class AuthoredQuestion(BaseModel):
+    """An authored question returned to the device (restore + status display)."""
+
+    id: uuid.UUID
+    type: str
+    text: str
+    answer: str
+    payload: dict[str, Any]
+    explanation: str | None
+    mnemonic: str | None
+    source: str
+    category_id: uuid.UUID
+    is_public: bool
+    verification_status: str
+
+    model_config = {"from_attributes": True}
+
+
 class SyncRequest(BaseModel):
     # Unsynced answer events from this device.
     events: list[SyncAnswerEvent]
     # The client's ENTIRE local progress table (LWW-merged server-side).
     progress: list[ProgressRow]
+    # Questions authored on this device that have not been pushed yet.
+    authored_questions: list[AuthoredQuestionPush] = []
     # None means "never set locally" (fresh device) — server copy is kept.
     preferences: dict[str, Any] | None = None
     # Highest server_seq this device has already pulled (0 on a fresh device).
@@ -53,5 +91,7 @@ class SyncResponse(BaseModel):
     events: list[SyncAnswerEvent]
     # ALL server progress rows for the user — client applies LWW per question.
     progress: list[ProgressRow]
+    # ALL questions authored by the user (restores authored content on a new device).
+    authored_questions: list[AuthoredQuestion]
     preferences: dict[str, Any]
     cursor: int

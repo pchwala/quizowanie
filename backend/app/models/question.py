@@ -15,6 +15,7 @@ class QuestionSource(str, enum.Enum):
     milionerzy_archive = "milionerzy_archive"
     pubquiz_archive = "pubquiz_archive"
     opentdb = "opentdb"
+    user_submission = "user_submission"
 
 
 class QuestionType(str, enum.Enum):
@@ -56,6 +57,13 @@ class Question(Base):
     difficulty: Mapped[int | None] = mapped_column(SmallInteger, nullable=True)
     category_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("categories.id"))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # Author of a user-submitted question; null for seed/archive content.
+    submitted_by: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id"), nullable=True
+    )
+    # Public submissions enter the shared moderation queue and (once verified)
+    # everyone's bundle; private ones never leave the author's account.
+    is_public: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=lambda: datetime.now(timezone.utc)
     )

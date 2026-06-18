@@ -29,7 +29,11 @@ CREATE TABLE IF NOT EXISTS questions (
   difficulty INTEGER,
   category_id TEXT NOT NULL,
   is_active INTEGER NOT NULL DEFAULT 1,
-  bundle_version TEXT
+  bundle_version TEXT,
+  is_user_owned INTEGER NOT NULL DEFAULT 0,
+  is_public INTEGER,
+  verification_status TEXT,
+  synced INTEGER NOT NULL DEFAULT 1
 );
 CREATE TABLE IF NOT EXISTS categories (
   id TEXT PRIMARY KEY,
@@ -82,7 +86,29 @@ async function init(): Promise<SQLiteDBConnection> {
   const db = await sqlite.createConnection(DB_NAME, false, 'no-encryption', 1, false);
   await db.open();
   await db.execute(SCHEMA);
+  await migrate(db);
   return db;
+}
+
+/**
+ * Idempotent column migrations for installs that already have a `questions`
+ * table (CREATE TABLE IF NOT EXISTS won't add new columns). Adds the
+ * user-authored-question columns when missing.
+ */
+async function migrate(db: SQLiteDBConnection): Promise<void> {
+  const res = await db.query('PRAGMA table_info(questions)');
+  const cols = new Set((res.values ?? []).map((r) => (r as { name: string }).name));
+  const additions: [string, string][] = [
+    ['is_user_owned', 'INTEGER NOT NULL DEFAULT 0'],
+    ['is_public', 'INTEGER'],
+    ['verification_status', 'TEXT'],
+    ['synced', 'INTEGER NOT NULL DEFAULT 1'],
+  ];
+  for (const [name, def] of additions) {
+    if (!cols.has(name)) {
+      await db.execute(`ALTER TABLE questions ADD COLUMN ${name} ${def}`);
+    }
+  }
 }
 
 export function getDb(): Promise<SQLiteDBConnection> {

@@ -37,10 +37,39 @@ interface LocalProgressRow {
   last_quality: number | null;
 }
 
+// Authored question as stored locally (payload is a JSON string, is_public an int).
+interface LocalAuthoredQuestionRow {
+  id: string;
+  type: string;
+  text: string;
+  answer: string;
+  payload: string;
+  explanation: string | null;
+  mnemonic: string | null;
+  is_public: number;
+  category_id: string;
+}
+
+// Authored question as returned by the server (full row for restore/status).
+interface RemoteAuthoredQuestion {
+  id: string;
+  type: string;
+  text: string;
+  answer: string;
+  payload: Record<string, unknown>;
+  explanation: string | null;
+  mnemonic: string | null;
+  source: string;
+  category_id: string;
+  is_public: boolean;
+  verification_status: string;
+}
+
 interface SyncResponse {
   synced: number;
   events: LocalAnswerEvent[];
   progress: LocalProgressRow[];
+  authored_questions: RemoteAuthoredQuestion[];
   preferences: UserPreferences | Record<string, never>;
   cursor: number;
 }
@@ -70,11 +99,15 @@ export async function syncNow(): Promise<number | null> {
     const events = await query<LocalAnswerEvent>(
       'SELECT event_id, question_id, quality, answered_at, mode FROM answer_events WHERE synced = 0 ORDER BY answered_at',
     );
+    const authoredRows = await query<LocalAuthoredQuestionRow>(
+      `SELECT id, type, text, answer, payload, explanation, mnemonic, is_public, category_id
+         FROM questions WHERE is_user_owned = 1 AND synced = 0`,
+    );
 
     // Anonymous users have a single device — nothing to pull, so skip the
     // round-trip when there is also nothing to push (avoids an API call on
     // every tab refocus). Registered users always pull (multi-device mirror).
-    if (events.length === 0 && auth.currentUser.isAnonymous) return 0;
+    if (events.length === 0 && authoredRows.length === 0 && auth.currentUser.isAnonymous) return 0;
 
     const progress = await query<LocalProgressRow>(
       'SELECT question_id, repetitions, easiness_factor, interval_days, next_review_at, last_reviewed_at, last_quality FROM progress',
@@ -84,9 +117,22 @@ export async function syncNow(): Promise<number | null> {
     const rawPrefs = await getMeta('preferences');
     const cursor = Number((await getMeta('sync_cursor')) ?? '0');
 
+    const authored_questions = authoredRows.map((q) => ({
+      id: q.id,
+      type: q.type,
+      text: q.text,
+      answer: q.answer,
+      payload: JSON.parse(q.payload) as Record<string, unknown>,
+      explanation: q.explanation,
+      mnemonic: q.mnemonic,
+      is_public: q.is_public === 1,
+      category_id: q.category_id,
+    }));
+
     const { data } = await client.post<SyncResponse>('/sync', {
       events,
       progress,
+      authored_questions,
       preferences: rawPrefs ? JSON.parse(rawPrefs) : null,
       cursor,
     });
@@ -96,6 +142,13 @@ export async function syncNow(): Promise<number | null> {
       await run(
         `UPDATE answer_events SET synced = 1 WHERE event_id IN (${part.map(() => '?').join(',')})`,
         part.map((e) => e.event_id),
+      );
+    }
+    // Mark pushed authored questions as synced.
+    for (const part of chunk(authoredRows, 500)) {
+      await run(
+        `UPDATE questions SET synced = 1 WHERE id IN (${part.map(() => '?').join(',')})`,
+        part.map((q) => q.id),
       );
     }
 
@@ -152,6 +205,33 @@ export async function syncNow(): Promise<number | null> {
           ]),
         },
       ]);
+    }
+
+    // Upsert authored questions (restores them on a fresh device and flows
+    // back verification status changes). Always is_user_owned=1 + synced=1.
+    if (data.authored_questions.length) {
+      const db = await getDb();
+      for (const part of chunk(data.authored_questions, 500)) {
+        await db.executeSet([
+          {
+            statement: `INSERT INTO questions
+                (id, type, text, answer, payload, explanation, mnemonic, source, difficulty,
+                 category_id, is_active, bundle_version, is_user_owned, is_public, verification_status, synced)
+              VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?, 1, NULL, 1, ?, ?, 1)
+              ON CONFLICT(id) DO UPDATE SET
+                text = excluded.text, answer = excluded.answer, payload = excluded.payload,
+                explanation = excluded.explanation, mnemonic = excluded.mnemonic,
+                source = excluded.source, category_id = excluded.category_id,
+                is_user_owned = 1, is_public = excluded.is_public,
+                verification_status = excluded.verification_status, synced = 1`,
+            values: part.map((q) => [
+              q.id, q.type, q.text, q.answer, JSON.stringify(q.payload),
+              q.explanation, q.mnemonic, q.source, q.category_id,
+              q.is_public ? 1 : 0, q.verification_status,
+            ]),
+          },
+        ]);
+      }
     }
 
     // Restore preferences only when this device never set any.

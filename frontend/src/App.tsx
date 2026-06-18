@@ -10,6 +10,8 @@ import NaukaPage from './pages/NaukaPage';
 import StudySessionPage from './pages/StudySessionPage';
 import PytaniaPage from './pages/PytaniaPage';
 import SourceQuestionsPage from './pages/SourceQuestionsPage';
+import AddQuestionPage from './pages/AddQuestionPage';
+import MojePytaniaPage from './pages/MojePytaniaPage';
 import MenuPage from './pages/MenuPage';
 
 const queryClient = new QueryClient({
@@ -30,6 +32,8 @@ const router = createBrowserRouter([
       { path: '/study/session', element: <StudySessionPage /> },
       { path: '/browse', element: <PytaniaPage /> },
       { path: '/browse/:source', element: <SourceQuestionsPage /> },
+      { path: '/questions/new', element: <AddQuestionPage /> },
+      { path: '/questions/mine', element: <MojePytaniaPage /> },
       { path: '/menu', element: <MenuPage /> },
     ],
   },

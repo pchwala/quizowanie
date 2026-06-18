@@ -9,9 +9,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.dependencies import get_db, get_current_user
 from app.models.answer import StudyAnswer
 from app.models.progress import UserQuestionProgress
-from app.models.question import Question
+from app.models.question import Question, QuestionSource, QuestionType, VerificationStatus
 from app.models.user import User
-from app.schemas.sync import ProgressRow, SyncAnswerEvent, SyncRequest, SyncResponse
+from app.schemas.sync import (
+    AuthoredQuestion,
+    ProgressRow,
+    SyncAnswerEvent,
+    SyncRequest,
+    SyncResponse,
+)
 
 router = APIRouter(tags=["sync"])
 
@@ -134,6 +140,34 @@ async def sync(
         )
         await db.execute(stmt)
 
+    # ---- Push: authored questions (insert-only, immutable by id) ----------
+    if body.authored_questions:
+        pushed_qids = {q.id for q in body.authored_questions}
+        existing_qids = set((await db.execute(
+            select(Question.id).where(Question.id.in_(pushed_qids))
+        )).scalars().all())
+        added: set[uuid.UUID] = set()
+        for q in body.authored_questions:
+            if q.id in existing_qids or q.id in added:
+                continue
+            added.add(q.id)
+            db.add(Question(
+                id=q.id,
+                type=QuestionType(q.type),
+                text=q.text,
+                answer=q.answer,
+                payload=q.payload,
+                explanation=q.explanation,
+                mnemonic=q.mnemonic,
+                source=QuestionSource.user_submission,
+                verification_status=VerificationStatus.pending,
+                difficulty=None,
+                category_id=q.category_id,
+                is_active=True,
+                submitted_by=current_user.id,
+                is_public=q.is_public,
+            ))
+
     # ---- Push: preferences (client copy authoritative when present) ------
     if body.preferences is not None:
         current_user.preferences = body.preferences
@@ -154,6 +188,10 @@ async def sync(
         select(UserQuestionProgress).where(UserQuestionProgress.user_id == current_user.id)
     )).scalars().all()
 
+    authored = (await db.execute(
+        select(Question).where(Question.submitted_by == current_user.id).order_by(Question.created_at)
+    )).scalars().all()
+
     max_seq = (await db.execute(
         select(func.max(StudyAnswer.server_seq)).where(StudyAnswer.user_id == current_user.id)
     )).scalar()
@@ -171,6 +209,7 @@ async def sync(
             for a in missing
         ],
         progress=[ProgressRow.model_validate(r) for r in progress_rows],
+        authored_questions=[AuthoredQuestion.model_validate(q) for q in authored],
         preferences=current_user.preferences,
         cursor=max_seq if max_seq is not None else body.cursor,
     )

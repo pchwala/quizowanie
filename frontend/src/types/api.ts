@@ -5,16 +5,50 @@ export interface Category {
   parent_id: string | null;
 }
 
-export type QuestionSource = '1z10_archive' | 'milionerzy_archive' | 'pubquiz_archive' | 'opentdb';
+export type QuestionSource =
+  | '1z10_archive'
+  | 'milionerzy_archive'
+  | 'pubquiz_archive'
+  | 'opentdb'
+  | 'user_submission';
 
 export const SOURCE_LABELS: Record<QuestionSource, string> = {
   '1z10_archive':      '1 z 10',
   milionerzy_archive:  'Milionerzy',
   pubquiz_archive:     'PubQuiz',
   opentdb:             'OpenTDB',
+  user_submission:     'Użytkownik',
 };
 
 export type QuestionType = 'multiple' | 'boolean' | 'question';
+
+// Slug of the shared category that public user submissions are filed under
+// (seeded server-side, shipped to clients via the bundle).
+export const PUBLIC_SUBMISSIONS_SLUG = 'pytania-uzytkownikow';
+
+export type VerificationStatus = 'pending' | 'verified' | 'rejected';
+
+// Input for the add-question form (open format only in v1).
+export interface NewQuestionInput {
+  text: string;
+  answer: string;
+  extraAccepted?: string[];
+  explanation?: string;
+  mnemonic?: string;
+  isPublic: boolean;
+  categoryId: string; // ignored when isPublic (forced to the public category)
+}
+
+// A question authored by the current user, as stored/displayed locally.
+export interface AuthoredQuestion {
+  id: string;
+  type: QuestionType;
+  text: string;
+  answer: string;
+  category_id: string;
+  is_public: boolean;
+  verification_status: VerificationStatus | null;
+}
 
 // Used by the browse page — no answer exposed
 export interface BrowseQuestion {

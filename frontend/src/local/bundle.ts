@@ -87,11 +87,19 @@ export async function refreshBundle(): Promise<BundleRefreshResult> {
 
   // Tombstones: drop removed/rejected questions and their schedule. The
   // answer_events log keeps its rows (needed for sync; the server skips
-  // unknown question ids).
+  // unknown question ids). The `is_user_owned = 0` guard keeps the author's
+  // own submissions (and their progress) even if a public one is rejected.
   if (bundle.deleted_ids.length) {
     const placeholders = bundle.deleted_ids.map(() => '?').join(',');
-    await run(`DELETE FROM questions WHERE id IN (${placeholders})`, bundle.deleted_ids);
-    await run(`DELETE FROM progress WHERE question_id IN (${placeholders})`, bundle.deleted_ids);
+    await run(
+      `DELETE FROM questions WHERE id IN (${placeholders}) AND is_user_owned = 0`,
+      bundle.deleted_ids,
+    );
+    await run(
+      `DELETE FROM progress WHERE question_id IN (${placeholders})
+         AND question_id NOT IN (SELECT id FROM questions WHERE is_user_owned = 1)`,
+      bundle.deleted_ids,
+    );
   }
 
   await setMeta('bundle_version', bundle.version);

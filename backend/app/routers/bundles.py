@@ -12,7 +12,12 @@ from app.schemas.category import CategoryResponse
 # before any Firebase identity exists. Questions are not user data.
 router = APIRouter(prefix="/bundles", tags=["bundles"])
 
-_ACTIVE = (Question.is_active.is_(True), Question.verification_status == VerificationStatus.verified)
+_ACTIVE = (
+    Question.is_active.is_(True),
+    Question.verification_status == VerificationStatus.verified,
+    # Private/non-public rows never ship in the public bundle, even if mis-verified.
+    Question.is_public.is_(True),
+)
 
 
 @router.get("/latest", response_model=BundleResponse)

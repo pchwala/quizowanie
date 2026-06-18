@@ -6,7 +6,11 @@ import SyncToast from '../common/SyncToast';
 
 function useShouldShowNav() {
   const { pathname } = useLocation();
-  return !pathname.startsWith('/study/') && !pathname.startsWith('/browse/');
+  return (
+    !pathname.startsWith('/study/') &&
+    !pathname.startsWith('/browse/') &&
+    !pathname.startsWith('/questions/')
+  );
 }
 
 export default function AppShell() {
