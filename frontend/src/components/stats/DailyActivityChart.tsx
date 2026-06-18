@@ -82,15 +82,16 @@ export default function DailyActivityChart() {
               label: 'Poznane',
               stack: 'activity',
               color: LEARNED_COLOR,
+              barLabel: (item) => (item.value ? `${item.value}` : ''),
             },
             {
               data: buckets.map((b) => b.reviewed),
               label: 'Powtórzone',
               stack: 'activity',
               color: REVIEWED_COLOR,
+              barLabel: (item) => (item.value ? `${item.value}` : ''),
             },
           ]}
-          barLabel={(item) => (item.value ? `${item.value}` : '')}
           height={280}
         />
       ) : (
