@@ -20,6 +20,7 @@ export default function WeakCategoriesChart({ categories }: Props) {
       xAxis={[{ scaleType: 'band', data: categories.map((c) => c.category_name) }]}
       series={[{ data: categories.map((c) => c.avg_quality), label: 'Średnia jakość' }]}
       yAxis={[{ min: 0, max: 5 }]}
+      barLabel={(item) => `${item.value ?? 0}`}
       height={280}
     />
   );

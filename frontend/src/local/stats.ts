@@ -1,6 +1,13 @@
-import { type UserStats, type WeakCategory } from '../types/api';
+import { type DailyActivity, type Timeline, type UserStats, type WeakCategory } from '../types/api';
 import { query } from './db';
 import { localDay } from './srs';
+
+const TIMELINE_DAYS: Record<Exclude<Timeline, 'all'>, number> = {
+  week: 7,
+  month: 30,
+  '3months': 90,
+  year: 365,
+};
 
 const WEAK_CATEGORY_MIN_ANSWERS = 5;
 const WEAK_CATEGORY_LIMIT = 5;
@@ -65,6 +72,61 @@ export async function getLocalStats(): Promise<UserStats> {
       avg_quality: Math.round(w.avg_quality * 100) / 100,
     })),
   };
+}
+
+/**
+ * Per-day activity for the stats chart, zero-filled across the selected range.
+ * - learned  = distinct questions whose FIRST-EVER answer fell on that day
+ *              (same definition as the daily-goal counter, kept consistent).
+ * - reviewed = all answers that day that were NOT a question's first answer.
+ * Runs over the full local answer_events log (append-only, unioned on sync).
+ */
+export async function getDailyActivity(timeline: Timeline): Promise<DailyActivity[]> {
+  let startDay: string;
+  if (timeline === 'all') {
+    const [minRow] = await query<{ d: string | null }>(
+      `SELECT date(MIN(answered_at), 'localtime') AS d FROM answer_events`,
+    );
+    if (!minRow?.d) return [];
+    startDay = minRow.d;
+  } else {
+    const days = TIMELINE_DAYS[timeline];
+    startDay = localDay(new Date(Date.now() - (days - 1) * 24 * 60 * 60 * 1000));
+  }
+
+  // learned[day] = count of questions whose first-ever answer is on that day
+  const learnedRows = await query<{ d: string; n: number }>(
+    `SELECT date(first_at, 'localtime') AS d, COUNT(*) AS n FROM (
+       SELECT question_id, MIN(answered_at) AS first_at
+       FROM answer_events GROUP BY question_id
+     )
+     WHERE date(first_at, 'localtime') >= ?
+     GROUP BY d`,
+    [startDay],
+  );
+  // total[day] = all answers that day
+  const totalRows = await query<{ d: string; n: number }>(
+    `SELECT date(answered_at, 'localtime') AS d, COUNT(*) AS n
+     FROM answer_events
+     WHERE date(answered_at, 'localtime') >= ?
+     GROUP BY d`,
+    [startDay],
+  );
+
+  const learnedBy = new Map(learnedRows.map((r) => [r.d, r.n]));
+  const totalBy = new Map(totalRows.map((r) => [r.d, r.n]));
+
+  const result: DailyActivity[] = [];
+  const today = localDay();
+  const [sy, sm, sd] = startDay.split('-').map(Number);
+  for (let cursor = startDay, t = new Date(sy, sm - 1, sd); cursor <= today; ) {
+    const learned = learnedBy.get(cursor) ?? 0;
+    const total = totalBy.get(cursor) ?? 0;
+    result.push({ day: cursor, learned, reviewed: Math.max(0, total - learned) });
+    t.setDate(t.getDate() + 1);
+    cursor = localDay(t);
+  }
+  return result;
 }
 
 /**

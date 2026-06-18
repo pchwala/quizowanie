@@ -89,6 +89,7 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
     setIsEmpty(false);
     setAnswered(0);
     queryClient.invalidateQueries({ queryKey: ['userStats'] });
+    queryClient.invalidateQueries({ queryKey: ['dailyActivity'] });
     // Opportunistic push of the session's answers (no-op offline/anonymous-only).
     void syncNow();
   };

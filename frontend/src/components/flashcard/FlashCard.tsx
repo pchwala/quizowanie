@@ -108,6 +108,16 @@ export default function FlashCard({
         >
           {isFlipped && (
             <>
+              {/* Repeat the question on the back so the user sees what was asked. */}
+              <Typography
+                variant="subtitle1"
+                align="center"
+                color="text.secondary"
+                sx={{ borderBottom: 1, borderColor: 'divider', pb: 1.5 }}
+              >
+                {question.text}
+              </Typography>
+
               {hasOptions && question.options ? (
                 <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, width: '100%' }}>
                   {question.options.map((opt) => {

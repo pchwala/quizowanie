@@ -60,6 +60,15 @@ export interface UserStats {
   weak_categories: WeakCategory[];
 }
 
+// Activity chart: amount learned (first-ever answer) vs reviewed per calendar day.
+export type Timeline = 'week' | 'month' | '3months' | 'year' | 'all';
+
+export interface DailyActivity {
+  day: string; // YYYY-MM-DD (local)
+  learned: number;
+  reviewed: number;
+}
+
 export type AnswerQuality = 0 | 3 | 5;
 
 export interface UserPreferences {

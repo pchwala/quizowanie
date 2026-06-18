@@ -5,6 +5,7 @@ import {
   Paper,
   Divider,
   ButtonBase,
+  Button,
 } from '@mui/material';
 import EditIcon from '@mui/icons-material/Edit';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlined';
@@ -14,6 +15,7 @@ import { useUserStats } from '../hooks/useUserStats';
 import { useUserPreferences } from '../hooks/useUserPreferences';
 import { useNewLearnedToday } from '../hooks/useNewLearnedToday';
 import WeakCategoriesChart from '../components/stats/WeakCategoriesChart';
+import DailyActivityChart from '../components/stats/DailyActivityChart';
 import CategoryPickerModal from '../components/study/CategoryPickerModal';
 import RegisterCta from '../components/common/RegisterCta';
 
@@ -65,6 +67,7 @@ export default function NaukaPage() {
   const navigate = useNavigate();
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [statsView, setStatsView] = useState<'weak' | 'activity'>('weak');
   const { data: stats } = useUserStats();
   const { preferences } = useUserPreferences();
 
@@ -173,10 +176,23 @@ export default function NaukaPage() {
         </Box>
 
         <Divider sx={{ mb: 2 }} />
-        <Typography variant="caption" sx={{ color: 'text.secondary', display: 'block', mb: 1 }}>
-          Słabe kategorie
-        </Typography>
-        <WeakCategoriesChart categories={weakCategories} />
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', mb: 1 }}>
+          <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+            {statsView === 'weak' ? 'Słabe kategorie' : 'Aktywność'}
+          </Typography>
+          <Button
+            size="small"
+            onClick={() => setStatsView((v) => (v === 'weak' ? 'activity' : 'weak'))}
+            sx={{ textTransform: 'none' }}
+          >
+            {statsView === 'weak' ? 'Pokaż aktywność' : 'Pokaż słabe kategorie'}
+          </Button>
+        </Box>
+        {statsView === 'weak' ? (
+          <WeakCategoriesChart categories={weakCategories} />
+        ) : (
+          <DailyActivityChart />
+        )}
       </Paper>
 
       <CategoryPickerModal
