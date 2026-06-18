@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { useSearchParams, useParams, useNavigate } from 'react-router-dom';
 import {
   Box,
@@ -18,11 +19,13 @@ import {
   Divider,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import OutlinedFlagIcon from '@mui/icons-material/OutlinedFlag';
 import { useCategories } from '../hooks/useCategories';
 import { useBrowseQuestions } from '../hooks/useQuestions';
 import type { QuestionDetail, QuestionType, QuestionSource } from '../types/api';
 import { SOURCE_LABELS } from '../types/api';
 import { buildCategoryOptions } from '../utils/categories';
+import ReportQuestionDialog from '../components/ReportQuestionDialog';
 
 const PAGE_SIZE = 50;
 
@@ -85,10 +88,18 @@ function AnswerSection({ question }: { question: QuestionDetail }) {
   );
 }
 
-function QuestionCard({ question, categoryName }: { question: QuestionDetail; categoryName: string }) {
+function QuestionCard({
+  question,
+  categoryName,
+  onReport,
+}: {
+  question: QuestionDetail;
+  categoryName: string;
+  onReport: () => void;
+}) {
   return (
     <Paper variant="outlined" sx={{ p: 2 }}>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.75, mb: 1 }}>
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75, mb: 1 }}>
         {categoryName && <Chip label={categoryName} size="small" variant="outlined" />}
         <Chip
           label={difficultyLabel(question.difficulty)}
@@ -102,6 +113,14 @@ function QuestionCard({ question, categoryName }: { question: QuestionDetail; ca
           variant="outlined"
           sx={{ color: 'text.disabled', borderColor: 'divider' }}
         />
+        <IconButton
+          size="small"
+          onClick={onReport}
+          aria-label="Zgłoś pytanie"
+          sx={{ ml: 'auto', color: 'text.disabled' }}
+        >
+          <OutlinedFlagIcon fontSize="small" />
+        </IconButton>
       </Box>
       <Typography variant="body1" sx={{ mb: 1.5 }}>{question.text}</Typography>
       <Divider sx={{ mb: 1.5 }} />
@@ -119,6 +138,7 @@ export default function SourceQuestionsPage() {
   const { source } = useParams<{ source: string }>();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
+  const [reportTarget, setReportTarget] = useState<string | null>(null);
 
   const categoryId = searchParams.get('category') ?? '';
   const type       = (searchParams.get('type') ?? '') as QuestionType | '';
@@ -239,6 +259,7 @@ export default function SourceQuestionsPage() {
               key={q.id}
               question={q}
               categoryName={getCategoryName(q.category_id)}
+              onReport={() => setReportTarget(q.id)}
             />
           ))}
         </Stack>
@@ -255,6 +276,12 @@ export default function SourceQuestionsPage() {
           />
         </Box>
       )}
+
+      <ReportQuestionDialog
+        open={reportTarget !== null}
+        questionId={reportTarget}
+        onClose={() => setReportTarget(null)}
+      />
     </Box>
   );
 }

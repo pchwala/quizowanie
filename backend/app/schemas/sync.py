@@ -72,6 +72,16 @@ class AuthoredQuestion(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class FlagPush(BaseModel):
+    """A question report queued on the device, deduped server-side by client_id."""
+
+    client_id: uuid.UUID
+    question_id: uuid.UUID
+    reason: str
+    detail: str | None = None
+    created_at: datetime
+
+
 class SyncRequest(BaseModel):
     # Unsynced answer events from this device.
     events: list[SyncAnswerEvent]
@@ -79,6 +89,8 @@ class SyncRequest(BaseModel):
     progress: list[ProgressRow]
     # Questions authored on this device that have not been pushed yet.
     authored_questions: list[AuthoredQuestionPush] = []
+    # Question reports queued on this device (write-only, never pulled back).
+    flags: list[FlagPush] = []
     # None means "never set locally" (fresh device) — server copy is kept.
     preferences: dict[str, Any] | None = None
     # Highest server_seq this device has already pulled (0 on a fresh device).

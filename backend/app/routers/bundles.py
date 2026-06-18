@@ -1,3 +1,5 @@
+import hashlib
+
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -41,15 +43,20 @@ async def get_latest_bundle(db: AsyncSession = Depends(get_db)) -> BundleRespons
     version_res = await db.execute(version_stmt)
 
     questions = questions_res.scalars().all()
+    cats = categories_res.scalars().all()
     count, max_created = version_res.one()
     # Monotonic-enough version for full-bundle MVP: changes whenever questions
-    # are added (count/max_created) or removed (count). Deltas come post-launch.
-    version = f"{count}-{max_created.isoformat() if max_created else 'empty'}"
+    # are added (count/max_created) or removed (count). The category fingerprint
+    # makes the version also move on any category add/remove/id-change, so the
+    # client re-applies the bundle and reconciles its local categories table
+    # (drops stale rows). Deltas come post-launch.
+    cat_fp = hashlib.md5("".join(sorted(str(c.id) for c in cats)).encode()).hexdigest()[:8]
+    version = f"{count}-{max_created.isoformat() if max_created else 'empty'}-{cat_fp}"
 
     return BundleResponse(
         version=version,
         question_count=count,
         questions=[BundleQuestion.model_validate(q) for q in questions],
-        categories=[CategoryResponse.model_validate(c) for c in categories_res.scalars().all()],
+        categories=[CategoryResponse.model_validate(c) for c in cats],
         deleted_ids=list(deleted_res.scalars().all()),
     )

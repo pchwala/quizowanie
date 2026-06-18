@@ -85,6 +85,17 @@ export async function refreshBundle(): Promise<BundleRefreshResult> {
     await db.executeSet(statements);
   }
 
+  // Reconcile categories to the bundle: the bundle ships the COMPLETE category
+  // set, so any local category not in it is stale (removed server-side or an
+  // old id) and must be dropped — otherwise it lingers forever as a duplicate
+  // dropdown entry. (Questions can't be mirror-pruned this way: they ship as a
+  // filtered subset, which is why they use deleted_ids tombstones instead.)
+  if (bundle.categories.length) {
+    const ids = bundle.categories.map((c) => c.id);
+    const placeholders = ids.map(() => '?').join(',');
+    await run(`DELETE FROM categories WHERE id NOT IN (${placeholders})`, ids);
+  }
+
   // Tombstones: drop removed/rejected questions and their schedule. The
   // answer_events log keeps its rows (needed for sync; the server skips
   // unknown question ids). The `is_user_owned = 0` guard keeps the author's

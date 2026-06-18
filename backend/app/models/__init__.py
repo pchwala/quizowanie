@@ -4,6 +4,7 @@ from app.models.category import Category
 from app.models.question import Question, QuestionSource, QuestionType, VerificationStatus
 from app.models.progress import UserQuestionProgress
 from app.models.answer import StudyAnswer
+from app.models.flag import QuestionFlag
 
 __all__ = [
     "User",
@@ -14,4 +15,5 @@ __all__ = [
     "VerificationStatus",
     "UserQuestionProgress",
     "StudyAnswer",
+    "QuestionFlag",
 ]

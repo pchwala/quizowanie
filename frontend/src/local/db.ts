@@ -62,9 +62,18 @@ CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS question_flags (
+  client_id TEXT PRIMARY KEY,
+  question_id TEXT NOT NULL,
+  reason TEXT NOT NULL,
+  detail TEXT,
+  created_at TEXT NOT NULL,
+  synced INTEGER NOT NULL DEFAULT 0
+);
 CREATE INDEX IF NOT EXISTS idx_questions_category ON questions(category_id);
 CREATE INDEX IF NOT EXISTS idx_progress_next_review ON progress(next_review_at);
 CREATE INDEX IF NOT EXISTS idx_answer_events_synced ON answer_events(synced);
+CREATE INDEX IF NOT EXISTS idx_question_flags_synced ON question_flags(synced);
 `;
 
 let sqlite: SQLiteConnection | null = null;

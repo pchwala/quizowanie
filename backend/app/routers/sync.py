@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.dependencies import get_db, get_current_user
 from app.models.answer import StudyAnswer
+from app.models.flag import QuestionFlag
 from app.models.progress import UserQuestionProgress
 from app.models.question import Question, QuestionSource, QuestionType, VerificationStatus
 from app.models.user import User
@@ -71,9 +72,11 @@ async def sync(
         seen.add(e.event_id)
         new_events.append(e)
 
-    referenced_qids = {e.question_id for e in new_events} | {
-        p.question_id for p in body.progress
-    }
+    referenced_qids = (
+        {e.question_id for e in new_events}
+        | {p.question_id for p in body.progress}
+        | {f.question_id for f in body.flags}
+    )
     known_qids: set[uuid.UUID] = set()
     active_qids: set[uuid.UUID] = set()
     if referenced_qids:
@@ -166,6 +169,26 @@ async def sync(
                 is_active=True,
                 submitted_by=current_user.id,
                 is_public=q.is_public,
+            ))
+
+    # ---- Push: question flags (union by client_id) -----------------------
+    if body.flags:
+        pushed_flag_ids = {f.client_id for f in body.flags}
+        existing_flag_ids = set((await db.execute(
+            select(QuestionFlag.client_id).where(QuestionFlag.client_id.in_(pushed_flag_ids))
+        )).scalars().all())
+        seen_flags: set[uuid.UUID] = set(existing_flag_ids)
+        for f in body.flags:
+            if f.client_id in seen_flags or f.question_id not in known_qids:
+                continue
+            seen_flags.add(f.client_id)
+            db.add(QuestionFlag(
+                question_id=f.question_id,
+                user_id=current_user.id,
+                reason=f.reason,
+                detail=f.detail,
+                created_at=_as_utc(f.created_at),
+                client_id=f.client_id,
             ))
 
     # ---- Push: preferences (client copy authoritative when present) ------

@@ -50,6 +50,15 @@ interface LocalAuthoredQuestionRow {
   category_id: string;
 }
 
+// Question report queued locally (write-only — never returned by the server).
+interface LocalFlagRow {
+  client_id: string;
+  question_id: string;
+  reason: string;
+  detail: string | null;
+  created_at: string;
+}
+
 // Authored question as returned by the server (full row for restore/status).
 interface RemoteAuthoredQuestion {
   id: string;
@@ -103,11 +112,22 @@ export async function syncNow(): Promise<number | null> {
       `SELECT id, type, text, answer, payload, explanation, mnemonic, is_public, category_id
          FROM questions WHERE is_user_owned = 1 AND synced = 0`,
     );
+    const flagRows = await query<LocalFlagRow>(
+      `SELECT client_id, question_id, reason, detail, created_at
+         FROM question_flags WHERE synced = 0`,
+    );
 
     // Anonymous users have a single device — nothing to pull, so skip the
     // round-trip when there is also nothing to push (avoids an API call on
     // every tab refocus). Registered users always pull (multi-device mirror).
-    if (events.length === 0 && authoredRows.length === 0 && auth.currentUser.isAnonymous) return 0;
+    if (
+      events.length === 0 &&
+      authoredRows.length === 0 &&
+      flagRows.length === 0 &&
+      auth.currentUser.isAnonymous
+    ) {
+      return 0;
+    }
 
     const progress = await query<LocalProgressRow>(
       'SELECT question_id, repetitions, easiness_factor, interval_days, next_review_at, last_reviewed_at, last_quality FROM progress',
@@ -133,6 +153,7 @@ export async function syncNow(): Promise<number | null> {
       events,
       progress,
       authored_questions,
+      flags: flagRows,
       preferences: rawPrefs ? JSON.parse(rawPrefs) : null,
       cursor,
     });
@@ -149,6 +170,13 @@ export async function syncNow(): Promise<number | null> {
       await run(
         `UPDATE questions SET synced = 1 WHERE id IN (${part.map(() => '?').join(',')})`,
         part.map((q) => q.id),
+      );
+    }
+    // Mark pushed flags as synced.
+    for (const part of chunk(flagRows, 500)) {
+      await run(
+        `UPDATE question_flags SET synced = 1 WHERE client_id IN (${part.map(() => '?').join(',')})`,
+        part.map((f) => f.client_id),
       );
     }
 

@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Box, Button, IconButton, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
+import OutlinedFlagIcon from '@mui/icons-material/OutlinedFlag';
 import CelebrationIcon from '@mui/icons-material/Celebration';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useStudySession } from '../hooks/useStudySession';
@@ -11,6 +12,7 @@ import FlashCard from '../components/flashcard/FlashCard';
 import RatingButtons from '../components/flashcard/RatingButtons';
 import SessionProgress from '../components/flashcard/SessionProgress';
 import LoadingScreen from '../components/common/LoadingScreen';
+import ReportQuestionDialog from '../components/ReportQuestionDialog';
 
 interface SessionState {
   categoryIds?: string[];
@@ -55,6 +57,7 @@ export default function StudySessionPage() {
 
   const { preferences } = useUserPreferences();
   const learnedToday = useNewLearnedToday();
+  const [reportOpen, setReportOpen] = useState(false);
   const {
     session,
     currentQuestion,
@@ -109,6 +112,14 @@ export default function StudySessionPage() {
           <ArrowBackIcon />
         </IconButton>
         <SessionProgress count={learnedToday} goal={preferences.daily_limit ?? 15} />
+        <IconButton
+          onClick={() => setReportOpen(true)}
+          size="small"
+          aria-label="Zgłoś pytanie"
+          sx={{ ml: 'auto', alignSelf: 'flex-start', color: 'text.disabled' }}
+        >
+          <OutlinedFlagIcon fontSize="small" />
+        </IconButton>
       </Box>
       <FlashCard
         question={currentQuestion}
@@ -119,6 +130,12 @@ export default function StudySessionPage() {
         onOptionSelect={selectOption}
       />
       {isFlipped && <RatingButtons onRate={submitAnswer} />}
+
+      <ReportQuestionDialog
+        open={reportOpen}
+        questionId={currentQuestion.id}
+        onClose={() => setReportOpen(false)}
+      />
     </Box>
   );
 }

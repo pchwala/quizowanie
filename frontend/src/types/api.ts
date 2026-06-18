@@ -99,6 +99,16 @@ export interface DailyActivity {
   reviewed: number;
 }
 
+export type FlagReason = 'wrong_answer' | 'typo' | 'inappropriate' | 'duplicate' | 'other';
+
+export const FLAG_REASON_LABELS: Record<FlagReason, string> = {
+  wrong_answer:  'Błędna odpowiedź',
+  typo:          'Literówka / błąd w treści',
+  inappropriate: 'Treść nieodpowiednia',
+  duplicate:     'Duplikat',
+  other:         'Inne',
+};
+
 export type AnswerQuality = 0 | 3 | 5;
 
 export interface UserPreferences {
