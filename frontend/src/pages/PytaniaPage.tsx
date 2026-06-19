@@ -1,12 +1,20 @@
 import { useState } from 'react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import {
   Box,
   Typography,
   Paper,
   Divider,
   ButtonBase,
+  Autocomplete,
   TextField,
   InputAdornment,
+  ToggleButton,
+  ToggleButtonGroup,
+  Stack,
+  CircularProgress,
+  Pagination,
+  Alert,
 } from '@mui/material';
 import SearchIcon from '@mui/icons-material/Search';
 import QuizIcon from '@mui/icons-material/Quiz';
@@ -15,9 +23,14 @@ import EmojiEventsIcon from '@mui/icons-material/EmojiEvents';
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 import CollectionsBookmarkIcon from '@mui/icons-material/CollectionsBookmark';
 import AddCircleOutlineIcon from '@mui/icons-material/AddCircleOutlined';
-import { useNavigate } from 'react-router-dom';
-import type { QuestionSource } from '../types/api';
+import type { QuestionSource, QuestionType } from '../types/api';
 import { SOURCE_LABELS } from '../types/api';
+import { useCategories } from '../hooks/useCategories';
+import { useBrowseQuestions } from '../hooks/useQuestions';
+import { buildCategoryOptions } from '../utils/categories';
+import QuestionCard from '../components/QuestionCard';
+import { DIFFICULTY_RANGES } from '../utils/questionDisplay';
+import ReportQuestionDialog from '../components/ReportQuestionDialog';
 
 interface SourceConfig {
   key: QuestionSource;
@@ -31,13 +44,56 @@ const SOURCES: SourceConfig[] = [
   { key: 'milionerzy_archive', Icon: EmojiEventsIcon,  color: '#56b6c2' },
 ];
 
+const PAGE_SIZE = 50;
+
 export default function PytaniaPage() {
   const navigate = useNavigate();
-  const [search, setSearch] = useState('');
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [reportTarget, setReportTarget] = useState<string | null>(null);
 
-  const filtered = SOURCES.filter(({ key }) =>
-    SOURCE_LABELS[key].toLowerCase().includes(search.toLowerCase()),
-  );
+  const categoryId = searchParams.get('category') ?? '';
+  const type       = (searchParams.get('type') ?? '') as QuestionType | '';
+  const difficulty = searchParams.get('difficulty') ?? '';
+  const page       = Math.max(1, parseInt(searchParams.get('page') ?? '1', 10));
+
+  const { data: categories = [] } = useCategories();
+  const categoryById = new Map(categories.map((c) => [c.id, c]));
+  const categoryOptions = buildCategoryOptions(categories);
+  const selectedOption = categoryOptions.find((o) => o.id === categoryId) ?? null;
+
+  const filterActive = Boolean(categoryId || type || difficulty);
+  const diffRange = difficulty ? DIFFICULTY_RANGES[difficulty] : null;
+
+  const { data, isLoading, isError, isFetching } = useBrowseQuestions({
+    category_id:    categoryId || undefined,
+    type:           type || undefined,
+    difficulty_min: diffRange?.min,
+    difficulty_max: diffRange?.max,
+    limit:          PAGE_SIZE,
+    offset:         (page - 1) * PAGE_SIZE,
+  });
+  const questions = data?.items ?? [];
+  const total     = data?.total ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  function updateFilter(key: string, value: string) {
+    setSearchParams((prev) => {
+      const next = new URLSearchParams(prev);
+      if (value) next.set(key, value); else next.delete(key);
+      next.set('page', '1');
+      return next;
+    });
+  }
+
+  function getCategoryName(id: string): string {
+    const cat = categoryById.get(id);
+    if (!cat) return '';
+    if (cat.parent_id) {
+      const parent = categoryById.get(cat.parent_id);
+      return parent ? `${parent.name}: ${cat.name}` : cat.name;
+    }
+    return cat.name;
+  }
 
   return (
     <Box sx={{ px: 2, pt: 3, pb: 2 }}>
@@ -45,26 +101,105 @@ export default function PytaniaPage() {
         Baza pytań
       </Typography>
 
-      <TextField
-        fullWidth
-        placeholder="Szukaj…"
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-        size="small"
-        sx={{
-          mb: 3,
-          '& .MuiOutlinedInput-root': { borderRadius: 3 },
-        }}
-        slotProps={{
-          input: {
-            startAdornment: (
-              <InputAdornment position="start">
-                <SearchIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
-              </InputAdornment>
-            ),
-          },
-        }}
-      />
+      {/* Search + filters (all sources) */}
+      <Stack spacing={1.5} sx={{ mb: 3 }}>
+        <Autocomplete
+          options={categoryOptions}
+          value={selectedOption}
+          onChange={(_, opt) => updateFilter('category', opt?.id ?? '')}
+          getOptionLabel={(o) => o.label}
+          isOptionEqualToValue={(a, b) => a.id === b.id}
+          size="small"
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              placeholder="Szukaj kategorii…"
+              slotProps={{
+                ...params.slotProps,
+                input: {
+                  ...params.slotProps.input,
+                  startAdornment: (
+                    <>
+                      <InputAdornment position="start">
+                        <SearchIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+                      </InputAdornment>
+                      {params.slotProps.input.startAdornment}
+                    </>
+                  ),
+                },
+              }}
+            />
+          )}
+          sx={{ '& .MuiOutlinedInput-root': { borderRadius: 3 } }}
+        />
+
+        <ToggleButtonGroup
+          value={difficulty}
+          exclusive
+          size="small"
+          onChange={(_, v) => updateFilter('difficulty', v ?? '')}
+          sx={{ '& .MuiToggleButton-root': { flex: 1 } }}
+        >
+          {Object.entries(DIFFICULTY_RANGES).map(([key, { label }]) => (
+            <ToggleButton key={key} value={key}>{label}</ToggleButton>
+          ))}
+        </ToggleButtonGroup>
+
+        <ToggleButtonGroup
+          value={type}
+          exclusive
+          size="small"
+          onChange={(_, v: QuestionType | null) => updateFilter('type', v ?? '')}
+          sx={{ '& .MuiToggleButton-root': { flex: 1 } }}
+        >
+          <ToggleButton value="multiple">Wielokrotnego wyboru</ToggleButton>
+          <ToggleButton value="boolean">Prawda/Fałsz</ToggleButton>
+        </ToggleButtonGroup>
+      </Stack>
+
+      {/* Results (only when a filter is active) */}
+      {filterActive && (
+        <Box sx={{ mb: 3 }}>
+          {isError && (
+            <Alert severity="error" sx={{ mb: 2 }}>
+              Nie udało się pobrać pytań.
+            </Alert>
+          )}
+          {isLoading ? (
+            <Box sx={{ display: 'flex', justifyContent: 'center', py: 6 }}>
+              <CircularProgress />
+            </Box>
+          ) : questions.length === 0 ? (
+            <Typography color="text.secondary" sx={{ py: 4, textAlign: 'center' }}>
+              Brak pytań spełniających kryteria.
+            </Typography>
+          ) : (
+            <Stack spacing={1.5} sx={{ opacity: isFetching ? 0.6 : 1, transition: 'opacity 0.15s' }}>
+              {questions.map((q) => (
+                <QuestionCard
+                  key={q.id}
+                  question={q}
+                  categoryName={getCategoryName(q.category_id)}
+                  onReport={() => setReportTarget(q.id)}
+                  showSource
+                />
+              ))}
+            </Stack>
+          )}
+
+          {!isLoading && questions.length > 0 && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', mt: 3 }}>
+              <Pagination
+                count={pageCount}
+                page={page}
+                onChange={(_, p) => { updateFilter('page', String(p)); window.scrollTo(0, 0); }}
+                color="primary"
+                siblingCount={1}
+              />
+            </Box>
+          )}
+        </Box>
+      )}
 
       <Paper sx={{ mb: 3 }}>
         {[
@@ -117,7 +252,7 @@ export default function PytaniaPage() {
       </Paper>
 
       <Paper>
-        {filtered.map(({ key, Icon, color }, i) => (
+        {SOURCES.map(({ key, Icon, color }, i) => (
           <Box key={key}>
             {i > 0 && <Divider />}
             <ButtonBase
@@ -154,6 +289,12 @@ export default function PytaniaPage() {
           </Box>
         ))}
       </Paper>
+
+      <ReportQuestionDialog
+        open={reportTarget !== null}
+        questionId={reportTarget}
+        onClose={() => setReportTarget(null)}
+      />
     </Box>
   );
 }

@@ -10,129 +10,22 @@ import {
   InputLabel,
   ToggleButton,
   ToggleButtonGroup,
-  Chip,
-  Paper,
   CircularProgress,
   Pagination,
   Stack,
   Alert,
-  Divider,
 } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
-import OutlinedFlagIcon from '@mui/icons-material/OutlinedFlag';
 import { useCategories } from '../hooks/useCategories';
 import { useBrowseQuestions } from '../hooks/useQuestions';
-import type { QuestionDetail, QuestionType, QuestionSource } from '../types/api';
+import type { QuestionType, QuestionSource } from '../types/api';
 import { SOURCE_LABELS } from '../types/api';
 import { buildCategoryOptions } from '../utils/categories';
 import ReportQuestionDialog from '../components/ReportQuestionDialog';
+import QuestionCard from '../components/QuestionCard';
+import { DIFFICULTY_RANGES } from '../utils/questionDisplay';
 
 const PAGE_SIZE = 50;
-
-const TYPE_LABELS: Record<QuestionType, string> = {
-  multiple: 'Wielokrotny wybór',
-  boolean: 'Prawda / Fałsz',
-  question: 'Otwarte',
-};
-
-const DIFFICULTY_RANGES: Record<string, { min: number; max: number; label: string }> = {
-  easy:   { min: 1, max: 3,  label: 'Łatwe' },
-  medium: { min: 4, max: 6,  label: 'Średnie' },
-  hard:   { min: 7, max: 10, label: 'Trudne' },
-};
-
-function difficultyLabel(d: number | null): string {
-  if (d === null) return '';
-  if (d <= 3) return 'Łatwe';
-  if (d <= 6) return 'Średnie';
-  return 'Trudne';
-}
-
-function difficultyColor(d: number | null): 'success' | 'warning' | 'error' | 'default' {
-  if (d === null) return 'default';
-  if (d <= 3) return 'success';
-  if (d <= 6) return 'warning';
-  return 'error';
-}
-
-function AnswerSection({ question }: { question: QuestionDetail }) {
-  const payload = question.payload as Record<string, unknown>;
-  return (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-      {question.type === 'multiple' &&
-        (question.options ?? []).map((opt) => (
-          <Chip
-            key={opt}
-            label={opt}
-            size="small"
-            color={opt === question.answer ? 'success' : 'default'}
-            variant={opt === question.answer ? 'filled' : 'outlined'}
-          />
-        ))}
-      {question.type === 'boolean' &&
-        ['Prawda', 'Fałsz'].map((opt) => (
-          <Chip
-            key={opt}
-            label={opt}
-            size="small"
-            color={opt === question.answer ? 'success' : 'default'}
-            variant={opt === question.answer ? 'filled' : 'outlined'}
-          />
-        ))}
-      {question.type === 'question' && (
-        <Typography variant="body2" sx={{ color: 'success.main', fontWeight: 600 }}>
-          {(payload['accepted'] as string[] | undefined)?.join(' / ') ?? question.answer}
-        </Typography>
-      )}
-    </Box>
-  );
-}
-
-function QuestionCard({
-  question,
-  categoryName,
-  onReport,
-}: {
-  question: QuestionDetail;
-  categoryName: string;
-  onReport: () => void;
-}) {
-  return (
-    <Paper variant="outlined" sx={{ p: 2 }}>
-      <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 0.75, mb: 1 }}>
-        {categoryName && <Chip label={categoryName} size="small" variant="outlined" />}
-        <Chip
-          label={difficultyLabel(question.difficulty)}
-          size="small"
-          color={difficultyColor(question.difficulty)}
-          variant="outlined"
-        />
-        <Chip
-          label={TYPE_LABELS[question.type]}
-          size="small"
-          variant="outlined"
-          sx={{ color: 'text.disabled', borderColor: 'divider' }}
-        />
-        <IconButton
-          size="small"
-          onClick={onReport}
-          aria-label="Zgłoś pytanie"
-          sx={{ ml: 'auto', color: 'text.disabled' }}
-        >
-          <OutlinedFlagIcon fontSize="small" />
-        </IconButton>
-      </Box>
-      <Typography variant="body1" sx={{ mb: 1.5 }}>{question.text}</Typography>
-      <Divider sx={{ mb: 1.5 }} />
-      <AnswerSection question={question} />
-      {question.explanation && (
-        <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-          {question.explanation}
-        </Typography>
-      )}
-    </Paper>
-  );
-}
 
 export default function SourceQuestionsPage() {
   const { source } = useParams<{ source: string }>();
