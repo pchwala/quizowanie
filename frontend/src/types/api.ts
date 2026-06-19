@@ -115,4 +115,6 @@ export type AnswerQuality = 0 | 3 | 5;
 export interface UserPreferences {
   show_options: boolean;
   daily_limit?: number;
+  timer_enabled?: boolean;
+  timer_seconds?: number;
 }

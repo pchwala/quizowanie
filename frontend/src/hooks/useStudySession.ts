@@ -6,9 +6,15 @@ import { syncNow } from '../sync/syncEngine';
 
 interface UseStudySessionOptions {
   showOptions?: boolean;
+  timerEnabled?: boolean;
+  timerSeconds?: number;
 }
 
-export function useStudySession({ showOptions = true }: UseStudySessionOptions = {}) {
+export function useStudySession({
+  showOptions = true,
+  timerEnabled = false,
+  timerSeconds = 5,
+}: UseStudySessionOptions = {}) {
   const queryClient = useQueryClient();
   const [session, setSession] = useState<StudySession | null>(null);
   const [currentQuestion, setCurrentQuestion] = useState<QuestionDetail | null>(null);
@@ -135,6 +141,17 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
     window.addEventListener('keydown', handler);
     return () => window.removeEventListener('keydown', handler);
   }, [showOptions]);
+
+  // Countdown timer (1 z 10 pressure): while a question is showing and the timer
+  // is enabled, reveal the answer when time runs out (the user still self-rates).
+  // The flip is a one-shot event — a single timeout; the smooth depleting bar is
+  // animated separately in StudySessionPage. Resets per question because
+  // fetchNext flips currentQuestion/isFlipped.
+  useEffect(() => {
+    if (!session || !currentQuestion || isFlipped || !timerEnabled) return;
+    const id = setTimeout(() => setIsFlipped(true), timerSeconds * 1000);
+    return () => clearTimeout(id);
+  }, [session, currentQuestion, isFlipped, timerEnabled, timerSeconds]);
 
   return {
     session,

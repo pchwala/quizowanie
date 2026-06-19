@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Box, Button, IconButton, Typography } from '@mui/material';
+import { Box, Button, IconButton, LinearProgress, Typography } from '@mui/material';
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import OutlinedFlagIcon from '@mui/icons-material/OutlinedFlag';
 import CelebrationIcon from '@mui/icons-material/Celebration';
@@ -51,6 +51,48 @@ function EmptyState({ mode, onBack }: { mode: 'new' | 'review'; onBack: () => vo
   );
 }
 
+// Smoothly draining countdown bar for the answer timer. Mounted per question
+// (keyed on the question id) and only while the question is showing, so its
+// rAF animation restarts cleanly each question. Isolated here so only this
+// small component re-renders each frame — not the page or the FlashCard. The
+// actual auto-flip on timeout is owned by useStudySession's setTimeout.
+function AnswerTimerBar({ durationSeconds }: { durationSeconds: number }) {
+  const [remaining, setRemaining] = useState(durationSeconds);
+
+  useEffect(() => {
+    const deadline = performance.now() + durationSeconds * 1000;
+    let raf = 0;
+    const tick = () => {
+      const r = Math.max(0, (deadline - performance.now()) / 1000);
+      setRemaining(r);
+      if (r > 0) raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(raf);
+  }, [durationSeconds]);
+
+  // Red in the final 3 seconds regardless of the configured duration.
+  const danger = remaining <= 3;
+
+  return (
+    <Box sx={{ maxWidth: 600, mx: 'auto', mb: 1.5 }}>
+      <LinearProgress
+        variant="determinate"
+        value={(remaining / durationSeconds) * 100}
+        color={danger ? 'error' : 'primary'}
+        sx={{ height: 6, borderRadius: 3 }}
+      />
+      <Typography
+        variant="caption"
+        color={danger ? 'error.main' : 'text.secondary'}
+        sx={{ display: 'block', textAlign: 'right', mt: 0.25 }}
+      >
+        {Math.ceil(remaining)} s
+      </Typography>
+    </Box>
+  );
+}
+
 export default function StudySessionPage() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -73,7 +115,11 @@ export default function StudySessionPage() {
     selectOption,
     submitAnswer,
     endSession,
-  } = useStudySession({ showOptions: preferences.show_options });
+  } = useStudySession({
+    showOptions: preferences.show_options,
+    timerEnabled: preferences.timer_enabled,
+    timerSeconds: preferences.timer_seconds,
+  });
 
   useEffect(() => {
     // Direct URL hit without navigation state — nothing to start, go home
@@ -123,6 +169,12 @@ export default function StudySessionPage() {
           <OutlinedFlagIcon fontSize="small" />
         </IconButton>
       </Box>
+      {preferences.timer_enabled && !isFlipped && (
+        <AnswerTimerBar
+          key={currentQuestion.id}
+          durationSeconds={preferences.timer_seconds ?? 5}
+        />
+      )}
       <FlashCard
         question={currentQuestion}
         isFlipped={isFlipped}

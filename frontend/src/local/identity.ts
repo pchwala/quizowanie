@@ -18,7 +18,12 @@ export async function getDeviceId(): Promise<string> {
   return id;
 }
 
-export const DEFAULT_PREFERENCES: UserPreferences = { show_options: true, daily_limit: 15 };
+export const DEFAULT_PREFERENCES: UserPreferences = {
+  show_options: true,
+  daily_limit: 15,
+  timer_enabled: false,
+  timer_seconds: 5,
+};
 
 export async function getLocalPreferences(): Promise<UserPreferences> {
   const raw = await getMeta('preferences');

@@ -31,6 +31,7 @@ export default function MenuPage() {
 
   const [displayName, setDisplayName] = useState(user?.displayName ?? '');
   const [dailyLimit, setDailyLimit] = useState(String(preferences.daily_limit ?? 15));
+  const [timerSeconds, setTimerSeconds] = useState(String(preferences.timer_seconds ?? 5));
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +48,7 @@ export default function MenuPage() {
       updatePreferences({
         ...preferences,
         daily_limit: Math.max(1, parseInt(dailyLimit, 10) || 15),
+        timer_seconds: Math.min(120, Math.max(1, parseInt(timerSeconds, 10) || 5)),
       });
       setSaved(true);
     } catch {
@@ -151,6 +153,36 @@ export default function MenuPage() {
             slotProps={{ htmlInput: { min: 1, max: 200 } }}
             sx={{ width: 180 }}
           />
+
+          <Box>
+            <FormControlLabel
+              control={
+                <Switch
+                  checked={preferences.timer_enabled ?? false}
+                  onChange={() =>
+                    updatePreferences({ ...preferences, timer_enabled: !preferences.timer_enabled })
+                  }
+                />
+              }
+              label="Timer (presja czasu)"
+              sx={{ mx: 0 }}
+            />
+            <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mt: 0.25, ml: 0.5 }}>
+              Symuluj presję czasu jak w 1 z 10
+            </Typography>
+          </Box>
+
+          {preferences.timer_enabled && (
+            <TextField
+              label="Czas na odpowiedź (s)"
+              type="number"
+              value={timerSeconds}
+              onChange={(e) => { setTimerSeconds(e.target.value); setSaved(false); }}
+              size="small"
+              slotProps={{ htmlInput: { min: 1, max: 120 } }}
+              sx={{ width: 180 }}
+            />
+          )}
 
           {saved && <Alert severity="success" sx={{ py: 0.5 }}>Zapisano.</Alert>}
           {error && <Alert severity="error" sx={{ py: 0.5 }}>{error}</Alert>}
