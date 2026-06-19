@@ -201,94 +201,98 @@ export default function PytaniaPage() {
         </Box>
       )}
 
-      <Paper sx={{ mb: 3 }}>
-        {[
-          {
-            label: 'Moje pytania',
-            Icon: CollectionsBookmarkIcon,
-            color: '#7c6ff0',
-            path: '/questions/mine',
-          },
-          {
-            label: 'Dodaj nowe pytanie',
-            Icon: AddCircleOutlineIcon,
-            color: '#5cb85c',
-            path: '/questions/new',
-          },
-        ].map(({ label, Icon, color, path }, i) => (
-          <Box key={path}>
-            {i > 0 && <Divider />}
-            <ButtonBase
-              sx={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                px: 2,
-                py: 1.5,
-                gap: 2,
-                textAlign: 'left',
-              }}
-              onClick={() => navigate(path)}
-            >
-              <Box
-                sx={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 2,
-                  bgcolor: `${color}22`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <Icon sx={{ color, fontSize: 22 }} />
+      {!filterActive && (
+        <>
+          <Paper sx={{ mb: 3 }}>
+            {[
+              {
+                label: 'Moje pytania',
+                Icon: CollectionsBookmarkIcon,
+                color: '#7c6ff0',
+                path: '/questions/mine',
+              },
+              {
+                label: 'Dodaj nowe pytanie',
+                Icon: AddCircleOutlineIcon,
+                color: '#5cb85c',
+                path: '/questions/new',
+              },
+            ].map(({ label, Icon, color, path }, i) => (
+              <Box key={path}>
+                {i > 0 && <Divider />}
+                <ButtonBase
+                  sx={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    px: 2,
+                    py: 1.5,
+                    gap: 2,
+                    textAlign: 'left',
+                  }}
+                  onClick={() => navigate(path)}
+                >
+                  <Box
+                    sx={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 2,
+                      bgcolor: `${color}22`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon sx={{ color, fontSize: 22 }} />
+                  </Box>
+                  <Typography sx={{ flex: 1, fontWeight: 500 }}>{label}</Typography>
+                  <ChevronRightIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+                </ButtonBase>
               </Box>
-              <Typography sx={{ flex: 1, fontWeight: 500 }}>{label}</Typography>
-              <ChevronRightIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
-            </ButtonBase>
-          </Box>
-        ))}
-      </Paper>
+            ))}
+          </Paper>
 
-      <Paper>
-        {SOURCES.map(({ key, Icon, color }, i) => (
-          <Box key={key}>
-            {i > 0 && <Divider />}
-            <ButtonBase
-              sx={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                px: 2,
-                py: 1.5,
-                gap: 2,
-                textAlign: 'left',
-              }}
-              onClick={() => navigate(`/browse/${key}`)}
-            >
-              <Box
-                sx={{
-                  width: 42,
-                  height: 42,
-                  borderRadius: 2,
-                  bgcolor: `${color}22`,
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  flexShrink: 0,
-                }}
-              >
-                <Icon sx={{ color, fontSize: 22 }} />
+          <Paper>
+            {SOURCES.map(({ key, Icon, color }, i) => (
+              <Box key={key}>
+                {i > 0 && <Divider />}
+                <ButtonBase
+                  sx={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    px: 2,
+                    py: 1.5,
+                    gap: 2,
+                    textAlign: 'left',
+                  }}
+                  onClick={() => navigate(`/browse/${key}`)}
+                >
+                  <Box
+                    sx={{
+                      width: 42,
+                      height: 42,
+                      borderRadius: 2,
+                      bgcolor: `${color}22`,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      flexShrink: 0,
+                    }}
+                  >
+                    <Icon sx={{ color, fontSize: 22 }} />
+                  </Box>
+                  <Typography sx={{ flex: 1, fontWeight: 500 }}>
+                    {SOURCE_LABELS[key]}
+                  </Typography>
+                  <ChevronRightIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
+                </ButtonBase>
               </Box>
-              <Typography sx={{ flex: 1, fontWeight: 500 }}>
-                {SOURCE_LABELS[key]}
-              </Typography>
-              <ChevronRightIcon sx={{ color: 'text.secondary', fontSize: 20 }} />
-            </ButtonBase>
-          </Box>
-        ))}
-      </Paper>
+            ))}
+          </Paper>
+        </>
+      )}
 
       <ReportQuestionDialog
         open={reportTarget !== null}
