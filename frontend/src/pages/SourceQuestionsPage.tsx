@@ -63,7 +63,7 @@ export default function SourceQuestionsPage() {
     setSearchParams((prev) => {
       const next = new URLSearchParams(prev);
       if (value) next.set(key, value); else next.delete(key);
-      next.set('page', '1');
+      if (key !== 'page') next.set('page', '1');
       return next;
     });
   }
