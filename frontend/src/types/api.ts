@@ -71,6 +71,7 @@ export type StudyMode = 'new' | 'review' | 'mixed';
 export interface StudySession {
   id: string;
   category_ids: string[] | null;
+  sources: QuestionSource[] | null;
   mode: StudyMode;
   started_at: string;
   questions_answered: number;

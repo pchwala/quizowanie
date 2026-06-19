@@ -97,3 +97,32 @@ export async function browseLocalQuestions(filters: LocalBrowseFilters = {}): Pr
 export async function getLocalCategories(): Promise<Category[]> {
   return query<Category>('SELECT id, name, slug, parent_id FROM categories ORDER BY name');
 }
+
+/** Stable display order for sources (matches the type union in api.ts). */
+const SOURCE_ORDER: QuestionSource[] = [
+  'opentdb',
+  '1z10_archive',
+  'milionerzy_archive',
+  'pubquiz_archive',
+  'user_submission',
+];
+
+/** Sources that actually have active questions in the local store. */
+export async function getAvailableSources(): Promise<QuestionSource[]> {
+  const rows = await query<{ source: QuestionSource }>(
+    'SELECT DISTINCT source FROM questions WHERE is_active = 1',
+  );
+  const present = new Set(rows.map((r) => r.source));
+  return SOURCE_ORDER.filter((s) => present.has(s));
+}
+
+/** Set of category ids that have active questions in any of the given sources. */
+export async function getCategoryIdsForSources(sources: QuestionSource[]): Promise<Set<string>> {
+  if (sources.length === 0) return new Set();
+  const placeholders = sources.map(() => '?').join(',');
+  const rows = await query<{ category_id: string }>(
+    `SELECT DISTINCT category_id FROM questions WHERE is_active = 1 AND source IN (${placeholders})`,
+    sources,
+  );
+  return new Set(rows.map((r) => r.category_id));
+}

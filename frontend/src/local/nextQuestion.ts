@@ -1,4 +1,4 @@
-import { type QuestionDetail, type StudyMode } from '../types/api';
+import { type QuestionDetail, type QuestionSource, type StudyMode } from '../types/api';
 import { query } from './db';
 import { localDay } from './srs';
 import { rowToDetail, type QuestionRow } from './questions';
@@ -16,21 +16,30 @@ import { rowToDetail, type QuestionRow } from './questions';
 export async function getNextLocalQuestion(
   mode: StudyMode,
   categoryIds: string[] | null,
+  sources: QuestionSource[] | null = null,
 ): Promise<QuestionDetail | null> {
   const catSql = categoryIds?.length
     ? `AND q.category_id IN (${categoryIds.map(() => '?').join(',')})`
     : '';
   const catParams = categoryIds?.length ? categoryIds : [];
 
+  const srcSql = sources?.length
+    ? `AND q.source IN (${sources.map(() => '?').join(',')})`
+    : '';
+  const srcParams = sources?.length ? sources : [];
+
+  const filterSql = `${catSql} ${srcSql}`;
+  const filterParams = [...catParams, ...srcParams];
+
   // Stage 1: due SRS questions
   if (mode === 'review' || mode === 'mixed') {
     const due = await query<QuestionRow>(
       `SELECT q.* FROM questions q
        JOIN progress p ON p.question_id = q.id
-       WHERE q.is_active = 1 AND p.next_review_at <= ? ${catSql}
+       WHERE q.is_active = 1 AND p.next_review_at <= ? ${filterSql}
        ORDER BY p.next_review_at ASC
        LIMIT 1`,
-      [localDay(), ...catParams],
+      [localDay(), ...filterParams],
     );
     if (due[0]) return rowToDetail(due[0]);
   }
@@ -40,10 +49,10 @@ export async function getNextLocalQuestion(
     const unseen = await query<QuestionRow>(
       `SELECT q.* FROM questions q
        WHERE q.is_active = 1
-         AND q.id NOT IN (SELECT question_id FROM progress) ${catSql}
+         AND q.id NOT IN (SELECT question_id FROM progress) ${filterSql}
        ORDER BY q.id
        LIMIT 1`,
-      catParams,
+      filterParams,
     );
     if (unseen[0]) return rowToDetail(unseen[0]);
   }

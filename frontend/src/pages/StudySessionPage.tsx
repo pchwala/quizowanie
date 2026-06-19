@@ -13,9 +13,11 @@ import RatingButtons from '../components/flashcard/RatingButtons';
 import SessionProgress from '../components/flashcard/SessionProgress';
 import LoadingScreen from '../components/common/LoadingScreen';
 import ReportQuestionDialog from '../components/ReportQuestionDialog';
+import type { QuestionSource } from '../types/api';
 
 interface SessionState {
   categoryIds?: string[];
+  sources?: QuestionSource[];
   mode?: 'new' | 'review';
 }
 
@@ -53,7 +55,7 @@ export default function StudySessionPage() {
   const navigate = useNavigate();
   const location = useLocation();
   const state = location.state as SessionState | null;
-  const { categoryIds, mode } = state ?? {};
+  const { categoryIds, sources, mode } = state ?? {};
 
   const { preferences } = useUserPreferences();
   const learnedToday = useNewLearnedToday();
@@ -79,7 +81,7 @@ export default function StudySessionPage() {
       navigate('/study', { replace: true });
       return;
     }
-    startSession(categoryIds, mode);
+    startSession(categoryIds, mode, sources);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 

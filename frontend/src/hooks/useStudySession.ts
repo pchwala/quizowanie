@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { type StudySession, type StudyMode, type QuestionDetail, type AnswerQuality } from '../types/api';
+import { type StudySession, type StudyMode, type QuestionDetail, type QuestionSource, type AnswerQuality } from '../types/api';
 import { startLocalSession, getNextForSession, submitLocalAnswer } from '../local/engine';
 import { syncNow } from '../sync/syncEngine';
 
@@ -42,8 +42,16 @@ export function useStudySession({ showOptions = true }: UseStudySessionOptions =
     return true;
   };
 
-  const startSession = async (categoryIds?: string[], mode: StudyMode = 'mixed') => {
-    const s = startLocalSession(categoryIds?.length ? categoryIds : null, mode);
+  const startSession = async (
+    categoryIds?: string[],
+    mode: StudyMode = 'mixed',
+    sources?: QuestionSource[],
+  ) => {
+    const s = startLocalSession(
+      categoryIds?.length ? categoryIds : null,
+      mode,
+      sources?.length ? sources : null,
+    );
     setIsComplete(false);
     setIsEmpty(false);
     setAnswered(0);

@@ -1,4 +1,4 @@
-import { type AnswerQuality, type QuestionDetail, type StudyMode, type StudySession } from '../types/api';
+import { type AnswerQuality, type QuestionDetail, type QuestionSource, type StudyMode, type StudySession } from '../types/api';
 import { persistWebStore, query, run } from './db';
 import { getNextLocalQuestion } from './nextQuestion';
 import { applySm2, makeProgress, type SrsProgress } from './srs';
@@ -13,10 +13,12 @@ import { applySm2, makeProgress, type SrsProgress } from './srs';
 export function startLocalSession(
   categoryIds: string[] | null,
   mode: StudyMode,
+  sources: QuestionSource[] | null = null,
 ): StudySession {
   return {
     id: crypto.randomUUID(),
     category_ids: categoryIds,
+    sources,
     mode,
     started_at: new Date().toISOString(),
     questions_answered: 0,
@@ -24,7 +26,7 @@ export function startLocalSession(
 }
 
 export async function getNextForSession(session: StudySession): Promise<QuestionDetail | null> {
-  return getNextLocalQuestion(session.mode, session.category_ids);
+  return getNextLocalQuestion(session.mode, session.category_ids, session.sources);
 }
 
 export async function submitLocalAnswer(

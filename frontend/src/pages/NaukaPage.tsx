@@ -18,6 +18,7 @@ import WeakCategoriesChart from '../components/stats/WeakCategoriesChart';
 import DailyActivityChart from '../components/stats/DailyActivityChart';
 import CategoryPickerModal from '../components/study/CategoryPickerModal';
 import RegisterCta from '../components/common/RegisterCta';
+import { type QuestionSource, SOURCE_LABELS } from '../types/api';
 
 const DAYS = ['Nd', 'Pn', 'Wt', 'Śr', 'Cz', 'Pt', 'Sb'];
 
@@ -63,10 +64,19 @@ function categoryLabel(count: number): string {
   return `${count} kategorii wybranych`;
 }
 
+function pickerLabel(sources: QuestionSource[], catCount: number): string {
+  const srcPart =
+    sources.length === 0
+      ? 'Wszystkie źródła'
+      : sources.map((s) => SOURCE_LABELS[s] ?? s).join(', ');
+  return `${srcPart} · ${categoryLabel(catCount)}`;
+}
+
 export default function NaukaPage() {
   const navigate = useNavigate();
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<string[]>([]);
+  const [selectedSources, setSelectedSources] = useState<QuestionSource[]>([]);
   const [statsView, setStatsView] = useState<'weak' | 'activity'>('weak');
   const { data: stats } = useUserStats();
   const { preferences } = useUserPreferences();
@@ -80,6 +90,7 @@ export default function NaukaPage() {
     navigate('/study/session', {
       state: {
         categoryIds: selectedCategoryIds.length ? selectedCategoryIds : undefined,
+        sources: selectedSources.length ? selectedSources : undefined,
         mode,
       },
     });
@@ -110,7 +121,7 @@ export default function NaukaPage() {
         >
           <EditIcon sx={{ color: 'text.secondary', fontSize: 22, flexShrink: 0 }} />
           <Typography sx={{ flex: 1, fontWeight: 500 }}>
-            {categoryLabel(selectedCategoryIds.length)}
+            {pickerLabel(selectedSources, selectedCategoryIds.length)}
           </Typography>
         </ButtonBase>
 
@@ -198,8 +209,10 @@ export default function NaukaPage() {
       <CategoryPickerModal
         open={categoryModalOpen}
         selected={selectedCategoryIds}
+        selectedSources={selectedSources}
         onClose={() => setCategoryModalOpen(false)}
-        onConfirm={(ids) => {
+        onConfirm={(sources, ids) => {
+          setSelectedSources(sources);
           setSelectedCategoryIds(ids);
           setCategoryModalOpen(false);
         }}
