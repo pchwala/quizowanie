@@ -48,17 +48,11 @@ User submissions flow through AI pre-screening (factual consistency, duplicate d
 4. Flashcard study with spaced repetition (SRS) for missed/weak questions
 5. Weakness tracking and statistics
 6. Daily training mode
-7. AI-generated practice questions for weak areas
 
 Game modes come after MVP:
 - **1 z 10 mode** — timed answers (5 s), streak tracking, pressure simulation
 - **Milionerzy mode** — ABCD format with 50:50, ask-AI-audience, ask-AI-expert lifelines
-- **PubQuiz mode** — simulated rounds (questions + music + image + geography)
-
-### Audio/Video Questions
-
-Store YouTube URL + start/end timestamps and embed via the YouTube player. Do not download or store clips locally (copyright).
 
 ### Fact Network (post-MVP)
 
-When a user answers incorrectly, surface related facts/entities to support associative learning.
+When a user answers incorrectly, surface related facts/entities to support associative learning.al
