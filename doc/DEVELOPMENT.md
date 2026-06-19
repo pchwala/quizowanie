@@ -85,8 +85,10 @@ alembic upgrade head                                    # apply
 alembic downgrade -1                                    # roll back one
 ```
 
-Current head: `a7b6c5d4e3f2` (flatten sync: per-user event log, drop
-study_sessions). Never mutate schema in seed scripts — migrations only.
+Current head: `c9d8e7f6a5b4` (add `question_flags`). The latest revisions add
+user submissions (`b8c7d6e5f4a3`) and question reports (`c9d8e7f6a5b4`) on top of
+the flatten-sync rework (`a7b6c5d4e3f2`); 9 revisions total. Never mutate schema
+in seed scripts — migrations only.
 
 ## Seeding the question bank
 

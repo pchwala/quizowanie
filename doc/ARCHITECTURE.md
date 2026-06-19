@@ -7,7 +7,11 @@ stats) runs entirely client-side; the server is a **sync backend**, not the
 live data path. The app is fully usable **anonymously and offline** (after a
 one-time bundle download); an account only adds cross-device sync.
 
-## Deployment topology (planned)
+## Deployment topology
+
+The local-first architecture below is **implemented** (since 2026-06-11). The
+hosting targets are the intended production setup but are **not live yet** — the
+Neon DB is a disposable test instance and there is no public web/Android deploy.
 
 | Layer | Service | Role |
 |---|---|---|
@@ -74,8 +78,9 @@ sign-in goes native instead (mobile track).
 
 - **The server mirrors, it doesn't compute**: `POST /sync` pushes this
   device's unsynced answer events, its **entire** client-computed progress
-  table, and preferences; the server stores them verbatim (no SM-2 replay) and
-  returns what the device is missing.
+  table, any locally authored questions, queued question reports (flags), and
+  preferences; the server stores them verbatim (no SM-2 replay) and returns what
+  the device is missing (events, progress, the user's authored questions).
 - **Answers are immutable events**: every rating appends to a local
   `answer_events` row with a client-generated UUID. The server dedupes by
   `client_event_id` (**union semantics — re-posting is a no-op**) and assigns
@@ -106,14 +111,20 @@ sign-in goes native instead (mobile track).
 users ──< study_answers >── questions >── categories (self-ref)
   │         (client_event_id UNIQUE = idempotency,    │
   │          server_seq = pull cursor)                │
-  └──< user_question_progress >──────────────────────┘
-        (client-computed SRS state, unique per user+question)
+  ├──< user_question_progress >──────────────────────┤
+  │     (client-computed SRS state, unique per user+question)
+  ├──< questions.submitted_by   (user-authored questions)
+  └──< question_flags >─────────────────────────────┘
+        (write-only "zgłoś błąd" reports, client_id UNIQUE)
 ```
 
 - **users** — Firebase-backed identity (anon uids included) + `preferences`
   JSONB (mirror of the device's preferences).
 - **study_answers** — append-only mirror of the device `answer_events` log.
 - **user_question_progress** — stored exactly as the client computed it.
+- **questions** — shared pool + user submissions (`submitted_by`, `is_public`).
+- **question_flags** — user question reports; write-only mirror of the local
+  `question_flags` table, deduped by `client_id`.
 
 The per-user tables are a **mirror of the local SQLite schema** (sessions are
 in-memory client-side; the event log is the durable record). See

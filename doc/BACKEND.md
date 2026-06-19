@@ -19,19 +19,21 @@ backend/
     models/
       user.py          # User (firebase_uid, email, preferences JSONB)
       category.py      # Category (self-referential parent_id)
-      question.py      # Question + enums (Source, Type, VerificationStatus)
+      question.py      # Question + enums (Source, Type, VerificationStatus); user-submission fields
       progress.py      # UserQuestionProgress (client-computed SRS state, stored verbatim)
       answer.py        # StudyAnswer (per-user answer-event log + server_seq cursor)
+      flag.py          # QuestionFlag (user "zgłoś błąd" reports — write-only mirror)
     schemas/
       category.py, bundle.py, sync.py
     routers/
       bundles.py       # GET /bundles/latest (PUBLIC — no auth)
-      sync.py          # POST /sync (mirror push + pull)
+      sync.py          # POST /sync (mirror push + pull; answers, progress, authored Qs, flags)
     seeds/             # data pipeline — see DATA_PIPELINE.md
   scripts/
     verify_sync.py     # in-process e2e check of /bundles/latest + /sync
                        # (auth overridden, self-cleaning; promote to pytest later)
-  alembic/             # migrations (7 revisions)
+    export_questions.py # dump DB questions/categories back to the seed JSON format
+  alembic/             # migrations (9 revisions)
   Dockerfile
   requirements.txt
 ```
@@ -70,11 +72,13 @@ Self-referential; max 2 levels for MVP (category → subcategory).
 | payload | JSONB | type-specific answer structure (see below) |
 | explanation | TEXT nullable | the "why" |
 | mnemonic | TEXT nullable | |
-| source | ENUM `QuestionSource` | `1z10_archive` / `milionerzy_archive` / `pubquiz_archive` / `opentdb` |
+| source | ENUM `QuestionSource` | `1z10_archive` / `milionerzy_archive` / `pubquiz_archive` / `opentdb` / `user_submission` |
 | verification_status | ENUM | `pending` / `verified` / `rejected` (default `pending`) |
-| difficulty | SMALLINT nullable | 1–10 |
+| difficulty | SMALLINT nullable | 1–10 (seed loader maps easy/medium/hard → 2/5/8) |
 | category_id | UUID FK → categories | |
 | is_active | BOOLEAN | default true; false = soft delete |
+| submitted_by | UUID FK → users nullable | author of a user-submitted question; NULL for seed/archive |
+| is_public | BOOLEAN | default true; private submissions never leave the author's account |
 | created_at | TIMESTAMPTZ | |
 
 **`payload` shape by type** (see docstring in `models/question.py`):
@@ -82,8 +86,10 @@ Self-referential; max 2 levels for MVP (category → subcategory).
 - `multiple` → `{"correct": "...", "incorrect": ["...", "...", "..."]}`
 - `boolean`  → `{"correct": true}`
 
-Only `is_active = true` AND `verification_status = verified` questions are
-served in the bundle; the rest appear as tombstones (`deleted_ids`).
+Only `is_active = true` AND `verification_status = verified` AND `is_public = true`
+questions are served in the public bundle; the rest appear as tombstones
+(`deleted_ids`). A user's own (private or still-pending) submissions reach their
+device through `/sync`, not the bundle.
 
 ### `user_question_progress`
 SM-2 state **computed by the client** and stored verbatim (the server runs no
@@ -116,7 +122,24 @@ Per-user answer-event log — the server-side mirror of the device's
 | client_event_id | UUID UNIQUE NOT NULL | device event UUID; sync idempotency key |
 | server_seq | BIGINT IDENTITY | monotonic pull cursor |
 
-### Migrations (Alembic, in order)
+### `question_flags`
+User "zgłoś błąd" reports — the server-side mirror of the device's
+`question_flags` table. **Write-only from the device** (created locally, pushed
+via `/sync`, never pulled back). `status` exists for manual moderation; there is
+no admin UI yet.
+
+| Column | Type | Notes |
+|---|---|---|
+| id | UUID PK | |
+| question_id | UUID FK → questions | |
+| user_id | UUID FK → users | |
+| reason | VARCHAR(32) | e.g. `wrong_answer` / `typo` / `inappropriate` / `duplicate` / `other` |
+| detail | TEXT nullable | free-text elaboration |
+| created_at | TIMESTAMPTZ | |
+| client_id | UUID UNIQUE | device-generated; sync idempotency key |
+| status | VARCHAR(20) | `pending` (default) → moderated manually |
+
+### Migrations (Alembic, in order — head `c9d8e7f6a5b4`)
 1. `897c2a87c2cd` — initial schema
 2. `b2f1a7c4d3e9` — add question `type` + `payload`
 3. `c3d2e1f0a9b8` — add `verification_status`
@@ -125,6 +148,8 @@ Per-user answer-event log — the server-side mirror of the device's
 6. `f6a5b4c3d2e1` — add `client_event_id` to study_answers (offline sync)
 7. `a7b6c5d4e3f2` — flatten sync: `study_answers` gains `user_id`/`mode`/`server_seq`,
    `client_event_id` NOT NULL, `session_id` dropped, **`study_sessions` dropped**
+8. `b8c7d6e5f4a3` — user submissions: `submitted_by` + `is_public` on `questions`
+9. `c9d8e7f6a5b4` — add `question_flags` table (report/flag mirror)
 
 ## API endpoints
 
@@ -152,7 +177,7 @@ updates are post-launch.
 POST /sync            # the device mirrors its user data and receives what it's missing
 ```
 
-Request:
+Request (`SyncRequest`):
 ```json
 {
   "events":   [ { "event_id": "uuid", "question_id": "uuid", "quality": 3,
@@ -160,23 +185,34 @@ Request:
   "progress": [ { "question_id": "uuid", "repetitions": 2, "easiness_factor": 2.5,
                   "interval_days": 6, "next_review_at": "2026-06-18",
                   "last_reviewed_at": "...", "last_quality": 3 } ],
+  "authored_questions": [ { "id": "uuid", "type": "question", "text": "...",
+                  "answer": "...", "payload": {}, "explanation": null,
+                  "mnemonic": null, "is_public": false, "category_id": "uuid" } ],
+  "flags": [ { "client_id": "uuid", "question_id": "uuid", "reason": "wrong_answer",
+                  "detail": null, "created_at": "..." } ],
   "preferences": { "show_options": true },
   "cursor": 0
 }
 ```
 - `events` — this device's unsynced answer events.
 - `progress` — the device's **entire** local progress table.
+- `authored_questions` — questions authored on this device not yet pushed
+  (insert-only; the server ignores ids it already has — immutable by id).
+- `flags` — question reports queued locally (write-only; deduped by `client_id`).
 - `preferences` — `null` means "never set locally" (fresh device); the server
   keeps its copy. Non-null replaces the server copy (client authoritative).
 - `cursor` — highest `server_seq` the device has already pulled (0 = fresh).
 
-Response: `{ synced, events, progress, preferences, cursor }`
+Response (`SyncResponse`): `{ synced, events, progress, authored_questions, preferences, cursor }`
 - `synced` — how many pushed events were new (union by `client_event_id`).
 - `events` — rows with `server_seq > request.cursor`, minus the ones just
   pushed. A fresh device (cursor 0) receives the **full answer history**, so
   streak/stats rebuild correctly — this is the restore-after-reinstall path.
 - `progress` — ALL server rows for the user; the client applies LWW per
   question by `last_reviewed_at`.
+- `authored_questions` — ALL questions the user authored (with `source` +
+  `verification_status`), so a fresh device restores its own content and shows
+  current moderation status. Flags are never returned.
 - `cursor` — new high-water mark; the client persists it after storing events.
 
 Semantics (`routers/sync.py`):
@@ -186,8 +222,11 @@ Semantics (`routers/sync.py`):
    UPDATE … WHERE excluded.last_reviewed_at > current.last_reviewed_at`. A
    stale device cannot regress another device's schedule. No SM-2 on the
    server — rows are stored exactly as the client computed them.
-3. Unknown/inactive `question_id`s are skipped silently (tombstoned questions).
-4. Naive client timestamps are treated as UTC (`_as_utc`).
+3. **Authored questions** insert-only by id (immutable; no edit/delete in
+   scope). Stored as `source = user_submission`, `verification_status = pending`.
+4. **Flags** idempotent union by `client_id`; write-only (never pulled back).
+5. Unknown/inactive `question_id`s are skipped silently (tombstoned questions).
+6. Naive client timestamps are treated as UTC (`_as_utc`).
 
 Verified end-to-end by `scripts/verify_sync.py` (idempotency, verbatim
 storage, LWW guard, and the fresh-device full-restore pull).

@@ -10,8 +10,9 @@ Duolingo/Anki for Polish trivia. Polish UI, Polish audience only.
 The MVP (web app) is **functionally complete**: backend at 100% of MVP scope,
 frontend essentially done. As of 2026-06-11 the app is **local-first**: it works
 anonymously and offline against on-device SQLite, with optional account
-registration + server sync (pre-Capacitor groundwork). Remaining work is
-testing and the Android (Capacitor) track.
+registration + server sync (pre-Capacitor groundwork). User-submitted questions,
+question reporting ("zgłoś błąd"), and daily-activity stats shipped 2026-06-18.
+Remaining work is testing and the Android (Capacitor) track.
 
 ---
 
@@ -49,7 +50,7 @@ streaks. Registering (optional) syncs progress across devices.
 
 | Layer | Choice |
 |---|---|
-| Frontend | React 19 + TypeScript (strict) + MUI v9 + TanStack Query v5 + Zustand |
+| Frontend | React 19 + TypeScript (strict) + MUI v9 (+ @mui/x-charts) + TanStack Query v5 + Zustand |
 | Local store | Capacitor SQLite (`jeep-sqlite` wasm on web) — source of truth on device |
 | Mobile shell | Capacitor (Android; `android/` scaffold pending) |
 | Auth | Firebase Auth — anonymous-first; email/password + Google linking |
@@ -61,7 +62,7 @@ streaks. Registering (optional) syncs progress across devices.
 ## Repo layout
 
 ```
-backend/        FastAPI app, models, routers, services, Alembic, seed pipeline
+backend/        FastAPI app, models, routers, schemas, Alembic, seed pipeline + scripts
 frontend/       React + Vite SPA
 data/           Question dataset + pipeline intermediates (JSON/JSONL)
 dev/            Original planning notes (superseded by /doc)

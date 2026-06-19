@@ -94,6 +94,11 @@ python -m app.seeds.load_questions --file data/final_questions.json
 python -m app.seeds.load_questions --dry-run
 ```
 
+### Reverse: `scripts/export_questions.py`
+Dumps the DB's `questions` + `categories` back into the seed JSON shape — useful
+for snapshotting the live bank or round-tripping edits made directly in Postgres
+back into a reloadable file. Lives in `backend/scripts/` (not `app/seeds/`).
+
 ## Data files (`data/`)
 
 | File | Stage | Notes |

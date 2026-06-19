@@ -90,12 +90,17 @@ and gate the paid tier behind >95% before charging.
 **Sequencing**: ship free archive + SRS first (the moat), add grounded
 generation as the premium drilling tier afterward.
 
-## Other planned product features (from CLAUDE.md / chatgpt notes)
+## Other product features
 
-- **User submissions** with AI pre-screening (factual consistency, duplicate
-  detection, spelling, category tagging) → human moderation. AI is never final
-  authority.
-- **Error reporting** ("zgłoś błąd") — flagged question drops out during review.
+- ✓ **User submissions** (shipped 2026-06-18) — authoring open/ABCD/boolean
+  questions, private or public, with own-content restore via `/sync`. **Still
+  to do**: AI pre-screening (factual consistency, duplicate detection, spelling,
+  category tagging) → human moderation (AI never the final authority), and a
+  moderation/admin UI for the shared queue.
+- ✓ **Error reporting** ("zgłoś błąd", shipped 2026-06-18) — reports queue
+  locally and sync to the `question_flags` table. **Still to do**: the
+  moderation loop that acts on flags (a flagged question dropping out during
+  review) — `QuestionFlag.status` is currently set by hand.
 - **Difficulty** computed from user success rate + answer time + moderator rating.
 - **Audio/video questions** — store YouTube URL + start/end timestamps, embed via
   the YT player (never download/store clips — copyright).

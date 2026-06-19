@@ -1,9 +1,32 @@
 # Status — Done / Remaining / Known Issues
 
-_Last reconciled against the code on 2026-06-12 (branch `feature`)._
+_Last reconciled against the code on 2026-06-19 (branch `feature`)._
 
 The MVP web app is functionally complete. What's left is testing and minor bug
 polish.
+
+## User submissions + reporting (2026-06-18)
+
+Two UGC features shipped end-to-end (the "bootstrap volume via community"
+half of the content strategy):
+
+- **User-submitted questions** — author open / ABCD / boolean questions
+  (`AddQuestionPage`), private or public. Backend gained `submitted_by` +
+  `is_public` on `questions` (migration `b8c7d6e5f4a3`) and a `user_submission`
+  source. The local `questions` table gained `is_user_owned` / `is_public` /
+  `verification_status`; `/sync` now mirrors authored questions both ways
+  (insert-only, immutable by id) so a fresh device restores them with their
+  current status. `MojePytaniaPage` lists them with a status chip.
+- **Question reporting ("zgłoś błąd")** — `ReportQuestionDialog` + a new
+  `question_flags` table both locally and server-side (`QuestionFlag` model,
+  migration `c9d8e7f6a5b4`). Flags are pushed write-only via `/sync`, deduped by
+  `client_id`. No moderation/admin UI yet — `status` is set manually.
+- **Daily-activity tracking + charts** — `DailyActivityChart` /
+  `WeakCategoriesChart` (`@mui/x-charts`), driven by `useDailyActivity` /
+  `useUserStats` over the local `answer_events` log.
+
+Current migration head: **`c9d8e7f6a5b4`** (9 revisions total).
+AI pre-screening of submissions is **not** wired yet (still roadmap).
 
 ## Backend cleanup + mirror sync (2026-06-12)
 
@@ -82,20 +105,22 @@ Data: `data/final_questions.json` holds 4500 compiled questions ready to load.
 | Anonymous-first auth (lazy anon uid; email/Google account **linking**) | Done |
 | Local SQLite store + offline study engine (`src/local/`) | Done |
 | Bundle bootstrap gate + background refresh | Done |
-| Sync engine (mirror push/pull + full restore) + toast | Done |
-| AppShell + responsive sidebar | Done |
+| Sync engine (mirror push/pull + full restore; events/progress/authored/flags) + toast | Done |
+| AppShell + BottomNav (Nauka / Pytania / Menu) | Done |
 | Study flow (Setup → FlashCard → Rating → Complete) | Done |
 | Clickable options on flashcard for multiple/boolean | Done |
 | Browse page (filters + pagination + answer view) | Done |
-| StatsPage (StatCards + WeakCategoriesChart) | Done |
-| SettingsPage (display name + sign-out + show_options) | Done |
+| Stats (StatCards + WeakCategoriesChart + DailyActivityChart) | Done |
+| User submissions (AddQuestionPage + MojePytaniaPage) | Done |
+| Question reporting (ReportQuestionDialog → local flags → sync) | Done |
+| MenuPage settings (display name + sign-out + show_options + daily_limit) | Done |
 | ErrorBoundary | Done |
 | All API clients / hooks / types | Done |
 
-> Note: earlier handoff notes (`dev/HANDOFF.md`, 2026-06-08) listed StatsPage,
-> SettingsPage, and ErrorBoundary as stubs/missing. They have since been
-> implemented — the files exist and are wired in. Treat this STATUS.md as
-> current.
+> Note: earlier handoff notes (`dev/HANDOFF.md`, 2026-06-08) referenced a
+> separate StatsPage and SettingsPage. The mobile-first refactor folded those
+> into NaukaPage (stats) and MenuPage (settings) under a BottomNav; ErrorBoundary
+> is implemented and wired in. Treat this STATUS.md as current.
 
 ## Remaining work
 

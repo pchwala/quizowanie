@@ -31,7 +31,7 @@ Do not create working branches, edit in current branch
 
 Every question carries:
 - **Content**: question text, answer, explanation (the "why"), optional mnemonic
-- **Source**: one of `1z10_archive | milionerzy_archive | pubquiz_archive | user_submission | ai_generated`
+- **Source**: one of `1z10_archive | milionerzy_archive | pubquiz_archive | opentdb | user_submission`
 - **Verification status**: `verified | pending | rejected`
 - **Difficulty**: 1–10 (computed from user success rate, answer time, moderator rating)
 - **Category / subcategory**
