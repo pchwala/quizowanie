@@ -26,9 +26,9 @@ frontend/
       db.ts                 # platform-aware SQLite connection + schema + query/run/meta helpers
       srs.ts                # SM-2 — the ONLY implementation (server stores verbatim)
       srs.test.ts           # frozen reference fixture for the schedule (npm test)
-      nextQuestion.ts       # due-SRS → unseen staging
+      nextQuestion.ts       # due-SRS → unseen staging (optional category + source filters)
       options.ts            # shuffled options builder
-      questions.ts          # row mapper + local browse/category queries
+      questions.ts          # row mapper + local browse/category/source queries
       stats.ts              # due/studied/streak/weak-categories/daily-activity over local tables
       engine.ts             # session orchestration: start/getNext/submitAnswer
       bundle.ts             # first-run fetch + background refresh of /bundles/latest
@@ -49,6 +49,7 @@ frontend/
     store/
       ui.ts                 # Zustand: UI state
     components/
+      QuestionCard          # shared browse card (answer reveal, chips, optional source chip)
       ReportQuestionDialog  # "zgłoś błąd" dialog (reason select + optional detail)
       common/   ProtectedRoute (bundle bootstrap gate), RegisterCta, SyncToast,
                 LoadingScreen, ErrorBoundary
@@ -59,6 +60,9 @@ frontend/
     pages/
       LoginPage (register/link screen), NaukaPage, StudySessionPage,
       PytaniaPage, SourceQuestionsPage, AddQuestionPage, MojePytaniaPage, MenuPage
+    utils/
+      categories.ts         # buildCategoryOptions — "Rodzic: Dziecko" labels for pickers
+      questionDisplay.ts    # TYPE_LABELS, DIFFICULTY_RANGES, difficulty label/colour
     types/
       api.ts                # all shared data shapes (single source of truth)
 ```
@@ -106,8 +110,8 @@ plugin — same code path through `getDb()`.
 `progress` upsert + `answer_events` append per answer:
 
 ```
-startSession(categoryIds?, mode)
-  └ startLocalSession() (no API)
+startSession(categoryIds?, mode?, sources?)
+  └ startLocalSession(categoryIds, mode, sources) (no API)
   └ fetchNext: getNextForSession() → full QuestionDetail from SQLite
       (the old /next + detail two-call pattern collapsed — answer is local)
 
@@ -120,6 +124,20 @@ endSession → reset, invalidate ['userStats'], void syncNow()
 
 **Flip-flash fix** (unchanged): `setCurrentQuestion` + `setIsFlipped(false)`
 are batched in `fetchNext`.
+
+**Source + category scope**: `CategoryPickerModal` („Wybierz źródła i
+kategorie”) lists sources from `getAvailableSources()`; once one or more are
+selected, top-level categories are narrowed to those with questions in those
+sources (`getCategoryIdsForSources`, a parent stays if any child matches).
+NaukaPage passes `sources` in the router state to `StudySessionPage`;
+`getNextLocalQuestion` appends `AND q.source IN (…)` to both staging queries.
+No source selected = all sources.
+
+**Answer timer** (optional, „Timer (presja czasu)” in Menu): preferences
+`timer_enabled` / `timer_seconds` (default 5, clamped 1–120). While a question
+is unflipped, `useStudySession` arms a single `setTimeout` that flips the card;
+`StudySessionPage` renders a draining `AnswerTimerBar`, remounted per question.
+The user still self-rates after the timeout.
 
 **Keyboard shortcuts** (unchanged): pre-flip `1–4` select option / `Space`
 flips; post-flip `1/2/3` → quality `0/3/5`.
@@ -170,10 +188,17 @@ odpowiedzi” (X = pushed + pulled).
 - **NaukaPage** — study home: RegisterCta, category picker, new/review entry
   rows, streak/total stats, weak-categories chart. All from local store.
 - **StudySessionPage** — the active flashcard loop.
-- **PytaniaPage / SourceQuestionsPage** — browse, filtered + paginated via
-  `browseLocalQuestions` (no network).
-- **MenuPage** — account card, settings (`show_options`, `daily_limit` — stored
-  in local `meta`), register/sign-out, links to add/your-own questions.
+- **PytaniaPage** (`/browse`) — „Szukaj kategorii…” Autocomplete across **all
+  sources** + difficulty/type toggles; when any filter is set, a paginated
+  result list of shared `QuestionCard`s with a source chip. Filter state lives
+  in URL params (`?category=&type=&difficulty=&page=`). Without filters it
+  shows the source cards and the „Moje pytania / Dodaj nowe pytanie” entry.
+- **SourceQuestionsPage** (`/browse/:source`) — the same filters scoped to one
+  source, `?page=n` pagination. Both pages query `browseLocalQuestions` (no
+  network).
+- **MenuPage** — account card, settings (`show_options`, `daily_limit`, timer
+  on/off + seconds — stored in local `meta`, mirrored by `/sync`),
+  register/sign-out, links to add/your-own questions.
 - **AddQuestionPage** (`/questions/new`) — author a question (open / ABCD /
   boolean), pick a category, choose private vs public. The client generates the
   UUID and writes it to the local `questions` table (`is_user_owned=1`); `/sync`
@@ -205,3 +230,13 @@ odpowiedzi” (X = pushed + pulled).
   in `local/srs.test.ts` is the reference spec. A failing fixture means every
   user's schedule changes — only change it deliberately and regenerate.
 - `npm test` runs vitest (currently the SRS fixture suite).
+
+## Environment
+
+Vite env vars (`.env.local` for dev, `.env.production` for the deployed build;
+both gitignored):
+
+| Var | Purpose |
+|---|---|
+| `VITE_API_URL` | backend base URL (default `http://localhost:8000`) |
+| `VITE_FIREBASE_API_KEY`, `VITE_FIREBASE_AUTH_DOMAIN`, `VITE_FIREBASE_PROJECT_ID`, `VITE_FIREBASE_STORAGE_BUCKET`, `VITE_FIREBASE_MESSAGING_SENDER_ID`, `VITE_FIREBASE_APP_ID` | Firebase web config read by `src/firebase.ts` |

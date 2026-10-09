@@ -9,17 +9,19 @@ one-time bundle download); an account only adds cross-device sync.
 
 ## Deployment topology
 
-The local-first architecture below is **implemented** (since 2026-06-11). The
-hosting targets are the intended production setup but are **not live yet** — the
-Neon DB is a disposable test instance and there is no public web/Android deploy.
+The web app is deployed (v1). Android is configured in Capacitor but the
+`android/` project has not been generated yet.
 
 | Layer | Service | Role |
 |---|---|---|
-| Frontend | Firebase Hosting (web) + Capacitor (Android) | React + MUI SPA |
+| Frontend | Firebase Hosting, project `pub-quizowanie` (web); Capacitor (Android, pending) | React + MUI SPA |
 | Local store | SQLite (`@capacitor-community/sqlite`; `jeep-sqlite` wasm on web) | Source of truth on device |
 | Auth | Firebase Auth | Anonymous-first; email/password + Google linking |
-| API | Cloud Run | FastAPI container (`backend/Dockerfile`) — bundle + sync |
-| Database | Neon Postgres | Canonical synced data (currently a disposable test DB) |
+| API | Cloud Run, `europe-west4` | FastAPI container (`backend/Dockerfile`) — bundle + sync |
+| Database | Neon Postgres | Canonical synced data + question pool |
+
+The production API URL is set at build time via `VITE_API_URL` in
+`frontend/.env.production`.
 
 The API is **fully stateless** — no session state server-side. Firebase Auth
 issues JWTs; FastAPI verifies them on every request via `firebase-admin`.

@@ -101,6 +101,10 @@ back into a reloadable file. Lives in `backend/scripts/` (not `app/seeds/`).
 
 ## Data files (`data/`)
 
+`data/` is **gitignored** — these files exist only on the machine that ran the
+pipeline. The DB is the canonical copy of the pool; snapshot it with
+`scripts/export_questions.py` (writes `data/questions_backup_<date>.json`).
+
 | File | Stage | Notes |
 |---|---|---|
 | `all_questions.json` | input | English OpenTDB, 4738 |

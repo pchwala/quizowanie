@@ -1,7 +1,8 @@
-# Roadmap — Post-MVP
+# Roadmap — Post-v1
 
-The MVP is the SRS flashcard loop on a general (OpenTDB) question pool. Beyond
-it, four big themes. Detailed planning notes live in `dev/`; this is the curated
+v1 (shipped, see [STATUS.md](STATUS.md)) is the SRS flashcard loop on a general
+(OpenTDB) question pool, with source/category scoping, an answer timer, browse
++ search, user submissions and reporting. Beyond it, four big themes. Detailed planning notes live in `dev/`; this is the curated
 summary.
 
 ## 1. Game modes
@@ -11,6 +12,9 @@ After the core loop is solid:
 - **1 z 10 mode** — timed answers (~5 s), streak tracking, pressure simulation.
   Key insight: the value is the *format and pressure*, not unique questions —
   run it on the general pool now; don't block on show-specific data.
+  ✓ First step shipped in v1: an optional per-question answer timer in study
+  sessions (default 5 s). Still to do: a dedicated mode with typed answers,
+  lives/streak scoring and a 1 z 10 round structure.
 - **Milionerzy mode** — ABCD format with lifelines (50:50, ask-AI-audience,
   ask-AI-expert). Maps directly onto the `multiple` question type + `payload`.
 

@@ -190,7 +190,8 @@ Request (`SyncRequest`):
                   "mnemonic": null, "is_public": false, "category_id": "uuid" } ],
   "flags": [ { "client_id": "uuid", "question_id": "uuid", "reason": "wrong_answer",
                   "detail": null, "created_at": "..." } ],
-  "preferences": { "show_options": true },
+  "preferences": { "show_options": true, "daily_limit": 20,
+                   "timer_enabled": false, "timer_seconds": 5 },
   "cursor": 0
 }
 ```
@@ -251,3 +252,8 @@ the older 4-grade scale (containing `4`) remain valid history.
 - Use Alembic for schema changes; never mutate schema in seed scripts.
 - CORS origins come from `CORS_ORIGINS` env (comma-separated;
   default `http://localhost:5173`).
+- `preferences` is schemaless JSONB — new client settings (e.g. the timer)
+  need no migration.
+- **Deployment**: `backend/Dockerfile` (python:3.12-slim, uvicorn on `$PORT`,
+  default 8080) runs on Cloud Run in `europe-west4`. Local dev uses Python 3.14.
+  On Cloud Run use Workload Identity rather than a service-account JSON.

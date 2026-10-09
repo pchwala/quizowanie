@@ -1,142 +1,97 @@
 # Status — Done / Remaining / Known Issues
 
-_Last reconciled against the code on 2026-06-19 (branch `feature`)._
+_Last reconciled against the code on 2026-10-09 (branch `main`, commit `88a2fb0`)._
 
-The MVP web app is functionally complete. What's left is testing and minor bug
-polish.
+**v1 is feature-complete.** The web app is deployed, works anonymously and
+offline, and syncs to an account. What remains for v1 is release hardening
+(testing, lint cleanup, a content/licensing check); everything else is
+post-v1 — see [ROADMAP.md](ROADMAP.md).
 
-## User submissions + reporting (2026-06-18)
-
-Two UGC features shipped end-to-end (the "bootstrap volume via community"
-half of the content strategy):
-
-- **User-submitted questions** — author open / ABCD / boolean questions
-  (`AddQuestionPage`), private or public. Backend gained `submitted_by` +
-  `is_public` on `questions` (migration `b8c7d6e5f4a3`) and a `user_submission`
-  source. The local `questions` table gained `is_user_owned` / `is_public` /
-  `verification_status`; `/sync` now mirrors authored questions both ways
-  (insert-only, immutable by id) so a fresh device restores them with their
-  current status. `MojePytaniaPage` lists them with a status chip.
-- **Question reporting ("zgłoś błąd")** — `ReportQuestionDialog` + a new
-  `question_flags` table both locally and server-side (`QuestionFlag` model,
-  migration `c9d8e7f6a5b4`). Flags are pushed write-only via `/sync`, deduped by
-  `client_id`. No moderation/admin UI yet — `status` is set manually.
-- **Daily-activity tracking + charts** — `DailyActivityChart` /
-  `WeakCategoriesChart` (`@mui/x-charts`), driven by `useDailyActivity` /
-  `useUserStats` over the local `answer_events` log.
-
-Current migration head: **`c9d8e7f6a5b4`** (9 revisions total).
-AI pre-screening of submissions is **not** wired yet (still roadmap).
-
-## Backend cleanup + mirror sync (2026-06-12)
-
-The backend was cut down to its real job — question provider + user-data
-mirror. Exactly **3 routes** remain: `GET /health`, `GET /bundles/latest`
-(public), `POST /sync` (auth).
-
-- **Removed**: `/auth/me` (redundant — `get_current_user` auto-creates the
-  user), `/categories`, `/questions*`, `/browse/questions`, all
-  `/study/sessions/*` endpoints, `/users/me/stats`, `/users/me/preferences`,
-  `services/srs.py`, `services/stats.py`, and the matching schemas. The SM-2
-  Python↔TS parity invariant is gone — `frontend/src/local/srs.ts` is the only
-  implementation (frozen fixture in `srs.test.ts`).
-- **New sync protocol** (`POST /sync`): the client pushes unsynced events, its
-  entire client-computed progress table, and preferences; the server stores
-  verbatim (events unioned by `client_event_id`, progress LWW by
-  `last_reviewed_at`, prefs replaced when non-null) and returns events the
-  device is missing (`server_seq > cursor`), all progress, and prefs. A fresh
-  device's first sync is a **full restore** (the registered-user guarantee:
-  delete the app, come back anytime, log in, everything returns).
-- **Migration `a7b6c5d4e3f2`** (applied to Neon): `study_answers` gained
-  `user_id`/`mode`/`server_seq`, `client_event_id` NOT NULL, `session_id`
-  dropped, `study_sessions` dropped.
-- **Verified 2026-06-12**: `backend/scripts/verify_sync.py` (rewritten) passes
-  end-to-end against Neon — idempotent union, verbatim progress storage, LWW
-  guard, fresh-device full-restore pull, preferences round-trip. Frontend
-  build + vitest green.
-
-## Local-first refactor (2026-06-11) — pre-Capacitor
-
-The app was inverted to **local-first + anonymous use + account sync**. No
-login wall: the study engine (SM-2, next-question staging, stats) now runs
-on-device against a Capacitor SQLite store (`jeep-sqlite` wasm on web), and the
-server became a sync backend.
-
-- **Question pool**: fetched on first run from the **public**
-  `GET /bundles/latest` (network required once), cached in SQLite, refreshed in
-  background with tombstone deletes (`frontend/src/local/bundle.ts`).
-- **Identity**: study never blocks on auth. `signInAnonymously()` attaches
-  lazily when online (`AuthContext`); registering **links** the credential onto
-  the anon uid (`LoginPage`), with sign-in fallback when the account exists.
-- **Sync & conflicts**: answers are immutable events (client UUIDs) in a local
-  `answer_events` log — **idempotent union** server-side; per-question
-  progress resolves **last-write-wins by `last_reviewed_at`** in both
-  directions. (Protocol since revised — see the 2026-06-12 section above.)
-- Unused `api/*` clients were removed (only `client.ts` stays, for
-  bundles + sync).
-
-**Remaining for this refactor:**
-1. `npx cap add android` + the mobile UI polish track
-   (`dev/MOBILE_CONSIDERATIONS.md` §6+). `capacitor.config.ts`, `base: './'`,
-   and the SQLite layer are already in place.
-2. Lint carries 7 pre-existing `react-hooks` v7 errors (`useStudySession` refs
-   pattern, `CategoryPickerModal`, `AuthContext` fast-refresh) — untouched by
-   this refactor.
-3. Promote `scripts/verify_sync.py` into a proper pytest suite once test infra
-   lands (point it at a non-shared Postgres before Neon becomes real prod).
-
-## Backend — minimal by design
-
-The study engine lives in the frontend; the backend has exactly the routes it
-needs (post-cleanup, 2026-06-12):
-
-| Endpoint | Status |
-|---|---|
-| `GET /health` | Done |
-| `GET /bundles/latest` | Done — PUBLIC; offline question pool + tombstones |
-| `POST /sync` | Done — mirror push/pull: event union, progress LWW, prefs, `server_seq` pull cursor |
-
-Data: `data/final_questions.json` holds 4500 compiled questions ready to load.
-
-## Frontend — essentially complete
+## v1 feature set
 
 | Feature | Status |
 |---|---|
 | Anonymous-first auth (lazy anon uid; email/Google account **linking**) | Done |
 | Local SQLite store + offline study engine (`src/local/`) | Done |
-| Bundle bootstrap gate + background refresh | Done |
-| Sync engine (mirror push/pull + full restore; events/progress/authored/flags) + toast | Done |
+| Question bundle bootstrap gate + background refresh with tombstones | Done |
+| Sync engine (mirror push/pull + full restore: events, progress, authored Qs, flags, prefs) + toast | Done |
 | AppShell + BottomNav (Nauka / Pytania / Menu) | Done |
-| Study flow (Setup → FlashCard → Rating → Complete) | Done |
+| Study flow (Setup → FlashCard → Rating → Complete), SM-2 on device | Done |
+| Study scope: **source(s) + categories** picker, new / review / mixed modes | Done |
 | Clickable options on flashcard for multiple/boolean | Done |
-| Browse page (filters + pagination + answer view) | Done |
+| **Answer timer** (optional, 1–120 s, auto-flips on timeout — "1 z 10" pressure) | Done |
+| Browse: **all-sources category search** + difficulty/type filters on `/browse` | Done |
+| Browse per source (`/browse/:source`) with filters + `?page=n` pagination | Done |
 | Stats (StatCards + WeakCategoriesChart + DailyActivityChart) | Done |
-| User submissions (AddQuestionPage + MojePytaniaPage) | Done |
-| Question reporting (ReportQuestionDialog → local flags → sync) | Done |
-| MenuPage settings (display name + sign-out + show_options + daily_limit) | Done |
+| User submissions (AddQuestionPage + MojePytaniaPage, private/public) | Done |
+| Question reporting ("zgłoś błąd" → local flags → sync) | Done |
+| MenuPage settings (display name, sign-out, `show_options`, `daily_limit`, timer) | Done |
 | ErrorBoundary | Done |
-| All API clients / hooks / types | Done |
 
-> Note: earlier handoff notes (`dev/HANDOFF.md`, 2026-06-08) referenced a
-> separate StatsPage and SettingsPage. The mobile-first refactor folded those
-> into NaukaPage (stats) and MenuPage (settings) under a BottomNav; ErrorBoundary
-> is implemented and wired in. Treat this STATUS.md as current.
+## Deployment
 
-## Remaining work
+| Piece | Where | State (checked 2026-10-09) |
+|---|---|---|
+| Web app | Firebase Hosting, project `pub-quizowanie` | responding |
+| API | Cloud Run, `europe-west4` (URL in `frontend/.env.production`) | `/health` → ok |
+| Database | Neon Postgres | migration head `c9d8e7f6a5b4` |
+| Android | Capacitor config only — `android/` not generated yet | post-v1 |
 
-1. **Testing** — vitest now exists with the SM-2 fixture suite
-   (`frontend/src/local/srs.test.ts`); `backend/scripts/verify_sync.py` covers
-   sync e2e. Still missing: next-question staging, local stats aggregation
-   (streak + weak categories), the study-flow hook, and a real pytest suite.
-2. **Real-device/manual testing** of the local-first flows (first run, offline
-   study, registration sync, multi-device merge, delete-app-and-restore).
-3. **Minor bug fixes** — see below.
+## History of the main milestones
 
-## Recently shipped (git history)
+### Browse search, source selection, timer (2026-06-19)
+- `/browse` gained a category Autocomplete spanning **all sources** plus the
+  difficulty/type toggles; results show a source chip. State lives in URL
+  query params (`?category=&type=&difficulty=&page=`). The question card was
+  extracted to `components/QuestionCard.tsx` and is shared with
+  `SourceQuestionsPage`.
+- The study picker (`CategoryPickerModal`) selects **sources first**, then
+  narrows categories to those with questions in the chosen sources. The
+  session carries `sources` down to `getNextLocalQuestion`.
+- Optional per-question **answer timer** (preferences `timer_enabled`,
+  `timer_seconds`, default 5 s): a draining bar on the card, auto-flip to the
+  answer on timeout.
 
-- Clickable options on flashcard for multiple/boolean questions.
-- FlashCard flip no longer flashes the answer during flip.
-- `useStudySession` flip-state management corrected.
-- Browse page recreated with pagination groundwork.
-- Planning docs: data sourcing, monetization, Android port plan.
-</content>
+### User submissions + reporting (2026-06-18)
+- Author open / ABCD / boolean questions, private or public. Backend gained
+  `submitted_by` + `is_public` (migration `b8c7d6e5f4a3`) and the
+  `user_submission` source; `/sync` mirrors authored questions both ways
+  (insert-only, immutable by id).
+- "Zgłoś błąd" reports → local + server `question_flags` (migration
+  `c9d8e7f6a5b4`), pushed write-only via `/sync`, deduped by `client_id`.
+- Daily-activity tracking + charts over the local `answer_events` log.
+
+### Backend cleanup + mirror sync (2026-06-12)
+Backend cut to 3 routes (`/health`, `/bundles/latest`, `/sync`); SM-2 lives
+only in the frontend; `/sync` became a verbatim mirror (event union, progress
+LWW, prefs). Verified end-to-end by `backend/scripts/verify_sync.py`.
+
+### Local-first refactor (2026-06-11)
+On-device SQLite became the source of truth; anonymous use with no login
+wall; registration links onto the anonymous uid.
+
+## Remaining before / around the v1 release
+
+1. **Testing** — vitest covers only the SM-2 fixture (`src/local/srs.test.ts`,
+   2 tests). Missing: next-question staging (incl. the source filter), local
+   stats aggregation (streak, weak categories, daily activity), the study-flow
+   hook (incl. timer), and a real pytest suite (promote
+   `scripts/verify_sync.py`, pointed at a non-shared Postgres).
+2. **Manual / real-device pass** of the local-first flows: first run, offline
+   study, registration sync, multi-device merge, delete-app-and-restore.
+3. **Lint** — 7 `react-hooks` v7 errors (`useStudySession` refs pattern,
+   `CategoryPickerModal`, `AuthContext` fast-refresh). Build and tests are green.
+4. **Bundle size** — Vite warns the main chunk is > 500 kB; consider
+   route-level code splitting.
+5. **Content licensing** — the pool is translated OpenTDB (CC BY-SA 4.0);
+   confirm attribution is shown in the app before a public launch.
+6. **Moderation is manual** — public submissions (`verification_status`) and
+   flags (`question_flags.status`) are changed directly in the DB.
+
+## Known issues / notes
+
+- Branding is mixed: the app shell/title says **quizMinds**
+  (`index.html`, `capacitor.config.ts`), the repo/API say **Quizowanie**.
+- The backend Dockerfile builds on Python 3.12; local dev uses 3.14.
+- Previously tracked UI bugs (`dev/ISSUES.md`: refocus refetch reshuffle,
+  flip-flash, browse pagination) are all fixed.

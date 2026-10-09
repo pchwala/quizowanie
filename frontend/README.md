@@ -1,73 +1,80 @@
-# React + TypeScript + Vite
+# Quizowanie — Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React 19 + TypeScript SPA (Vite), wrapped by Capacitor for Android. Polish UI,
+dark theme.
 
-Currently, two official plugins are available:
+**Local-first**: questions, SRS progress and the answer log live in on-device
+SQLite (`jeep-sqlite` wasm + IndexedDB on web, the native plugin on Android).
+The app needs the network once, to download the question bundle; after that
+study works offline. The API is used only for `GET /bundles/latest` and
+`POST /sync`.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+Full reference: [../doc/FRONTEND.md](../doc/FRONTEND.md).
 
-## React Compiler
+## Setup
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+cd frontend
+npm install
+npm run dev       # http://localhost:5173 (backend must be reachable on first run)
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+### Env (`.env.local` for dev, `.env.production` for deploy — both gitignored)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
-
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
 ```
+VITE_API_URL=http://localhost:8000
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+```
+
+## Scripts
+
+| Command | What it does |
+|---|---|
+| `npm run dev` | Vite dev server |
+| `npm run build` | `tsc -b && vite build` → `dist/` |
+| `npm run test` | vitest (SM-2 frozen fixture) |
+| `npm run lint` | eslint (7 known `react-hooks` errors — see doc/STATUS.md) |
+| `npm run preview` | serve the production build |
+
+## Layout
+
+```
+src/
+  local/      on-device data layer: db, srs (SM-2), nextQuestion, engine,
+              bundle, stats, questions, userQuestions, flags, identity
+  sync/       syncEngine — POST /sync mirror
+  hooks/      useStudySession + TanStack Query wrappers over local/*
+  pages/      Nauka, StudySession, Pytania, SourceQuestions, AddQuestion,
+              MojePytania, Menu, Login
+  components/ flashcard, study, stats, layout, common, QuestionCard,
+              ReportQuestionDialog
+  contexts/   AuthContext (anonymous-first Firebase auth)
+  types/api.ts  shared data shapes
+  theme.ts    MUI theme (single source of colours/typography)
+```
+
+Routes: `/study`, `/study/session`, `/browse`, `/browse/:source`,
+`/questions/new`, `/questions/mine`, `/menu`, `/login`.
+
+## Rules
+
+- Pages stay thin; logic lives in `hooks/` and `local/`.
+- All user-facing strings are Polish and hard-coded (no i18n).
+- `src/local/srs.ts` is the **only** SM-2 implementation. If
+  `srs.test.ts` fails, every user's schedule changes — only change it on purpose.
+- After a `sql.js` major bump, re-copy `node_modules/sql.js/dist/sql-wasm.wasm`
+  to `public/assets/`.
+
+## Deploy
+
+```bash
+npm run build && firebase deploy --only hosting     # project pub-quizowanie
+```
+
+Android: `capacitor.config.ts` is ready (`com.quizowanie.app`); run
+`npx cap add android` to generate the native project (not done yet).

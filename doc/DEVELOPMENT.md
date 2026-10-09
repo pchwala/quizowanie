@@ -48,8 +48,32 @@ npm run preview    # preview the production build
 ```
 
 ### Frontend env
-`VITE_API_URL` — backend base URL (defaults to `http://localhost:8000` if unset).
-Firebase web config lives in `src/firebase.ts`.
+Put these in `frontend/.env.local` (dev) / `frontend/.env.production` (deploy
+build); both are gitignored.
+
+```
+VITE_API_URL=http://localhost:8000          # default if unset
+VITE_FIREBASE_API_KEY=...
+VITE_FIREBASE_AUTH_DOMAIN=...
+VITE_FIREBASE_PROJECT_ID=...
+VITE_FIREBASE_STORAGE_BUCKET=...
+VITE_FIREBASE_MESSAGING_SENDER_ID=...
+VITE_FIREBASE_APP_ID=...
+```
+
+`src/firebase.ts` reads the Firebase config from these vars.
+
+## Deploying
+
+```bash
+# Web → Firebase Hosting (project pub-quizowanie, see frontend/.firebaserc)
+cd frontend && npm run build && firebase deploy --only hosting
+```
+
+The API is deployed to Cloud Run (`europe-west4`) from the GCP web console,
+built from `backend/Dockerfile`. Set `DATABASE_URL`, `FIREBASE_PROJECT_ID` and `CORS_ORIGINS` (must include the
+Hosting origin) on the Cloud Run service. Run `alembic upgrade head` against
+the production DB before deploying a backend that needs a new migration.
 
 ### Local-first notes
 - **First run needs the backend up** (or network to it): the app downloads the
@@ -92,8 +116,9 @@ in seed scripts — migrations only.
 
 ## Seeding the question bank
 
-Full pipeline in [DATA_PIPELINE.md](DATA_PIPELINE.md). To just load the
-already-compiled set:
+Full pipeline in [DATA_PIPELINE.md](DATA_PIPELINE.md). `data/` is gitignored —
+the dataset files are not in the repo; get them from the existing DB with
+`scripts/export_questions.py` or from your local copy. To load a compiled set:
 
 ```bash
 cd backend
@@ -106,13 +131,13 @@ The AI stages (`translate_questions.py`, `triage_questions.py`) need
 
 ## Working conventions (from CLAUDE.md)
 
-- **Do not create working branches.** Edit on the active feature branch so the
-  user sees edits live in the editor. The user runs a single instance at a time.
+- **Do not create working branches.** Edit on the current branch so the user
+  sees edits live in the editor. The user runs a single instance at a time.
 - Polish is the product language; all user-facing strings are Polish.
 - Keep `dev/` as raw planning notes; keep `doc/` implementation-accurate.
 
 ## Git
 
-- Current working branch: `feature`. Main branch: `main`.
+- Work happens directly on `main`.
 - Commit/push only when asked.
 </content>
